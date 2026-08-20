@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>User Management</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f7f9;
+            margin: 0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
+        }
+
+        h1 {
+            color: #164e63;
+        }
+
+        .form-box,
+        .table-box {
+            background: white;
+            padding: 25px;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+        }
+
+        input,
+        select {
+            padding: 10px;
+            width: 100%;
+            margin-top: 6px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        button {
+            background: #0f766e;
+            color: white;
+            border: none;
+            padding: 11px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #115e59;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #164e63;
+            color: white;
+        }
+
+        .back {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #164e63;
+            font-weight: bold;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>👤 User Management</h1>
+
+    <p>
+        Create and manage staff accounts.
+    </p>
+
+
+    <!-- CREATE USER -->
+
+    <div class="form-box">
+
+        <h2>Create New User</h2>
+
+        <form method="POST">
+
+            <label>Username</label>
+
+            <input
+                type="text"
+                name="username"
+                placeholder="Enter username"
+                required
+            >
+
+
+            <label>Password</label>
+
+            <input
+                type="password"
+                name="password"
+                placeholder="Enter password"
+                required
+            >
+
+
+            <label>Role</label>
+
+            <select name="role" required>
+
+                <option value="">
+                    Select Role
+                </option>
+
+                <option value="Administrator">
+                    Administrator
+                </option>
+
+                <option value="Doctor">
+                    Doctor
+                </option>
+
+                <option value="Pharmacist">
+                    Pharmacist
+                </option>
+
+                <option value="Receptionist">
+                    Receptionist
+                </option>
+
+            </select>
+
+
+            <button type="submit">
+                Create User
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- USERS -->
+
+    <div class="table-box">
+
+        <h2>System Users</h2>
+
+        <table>
+
+            <tr>
+
+                <th>ID</th>
+
+                <th>Username</th>
+
+                <th>Role</th>
+
+            </tr>
+
+
+            {% for user in users %}
+
+            <tr>
+
+                <td>
+                    {{ user["id"] }}
+                </td>
+
+                <td>
+                    {{ user["username"] }}
+                </td>
+
+                <td>
+                    {{ user["role"] }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+
+    <a href="{{ url_for('dashboard') }}"
+       class="back">
+        ← Back to Dashboard
+    </a>
+
+</div>
+
+</body>
+
+</html>

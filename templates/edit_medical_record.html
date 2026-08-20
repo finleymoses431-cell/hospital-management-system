@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Edit Medical Record</title>
+</head>
+
+<body>
+
+    <h1>Edit Medical Record</h1>
+
+    <form method="POST">
+
+        <label>Record Number:</label><br>
+        <input
+            type="text"
+            name="record_number"
+            value="{{ record['record_number'] }}"
+            required
+        >
+
+        <br><br>
+
+        <label>Patient:</label><br>
+
+        <select name="patient_id" required>
+
+            {% for patient in patients %}
+
+            <option
+                value="{{ patient['id'] }}"
+                {% if patient['id'] == record['patient_id'] %}
+                selected
+                {% endif %}
+            >
+                {{ patient['patient_number'] }} -
+                {{ patient['first_name'] }}
+                {{ patient['last_name'] }}
+            </option>
+
+            {% endfor %}
+
+        </select>
+
+        <br><br>
+
+        <label>Doctor:</label><br>
+
+        <select name="doctor_id" required>
+
+            {% for doctor in doctors %}
+
+            <option
+                value="{{ doctor['id'] }}"
+                {% if doctor['id'] == record['doctor_id'] %}
+                selected
+                {% endif %}
+            >
+                {{ doctor['doctor_number'] }} -
+                {{ doctor['first_name'] }}
+                {{ doctor['last_name'] }}
+                ({{ doctor['specialization'] }})
+            </option>
+
+            {% endfor %}
+
+        </select>
+
+        <br><br>
+
+        <label>Visit Date:</label><br>
+
+        <input
+            type="date"
+            name="visit_date"
+            value="{{ record['visit_date'] }}"
+            required
+        >
+
+        <br><br>
+
+        <label>Symptoms / Complaints:</label><br>
+
+        <textarea
+            name="symptoms"
+            rows="4"
+            cols="50"
+        >{{ record['symptoms'] }}</textarea>
+
+        <br><br>
+
+        <label>Diagnosis:</label><br>
+
+        <textarea
+            name="diagnosis"
+            rows="4"
+            cols="50"
+        >{{ record['diagnosis'] }}</textarea>
+
+        <br><br>
+
+        <label>Treatment:</label><br>
+
+        <textarea
+            name="treatment"
+            rows="4"
+            cols="50"
+        >{{ record['treatment'] }}</textarea>
+
+        <br><br>
+
+        <label>Prescription:</label><br>
+
+        <textarea
+            name="prescription"
+            rows="4"
+            cols="50"
+        >{{ record['prescription'] }}</textarea>
+
+        <br><br>
+
+        <label>Follow-up Date:</label><br>
+
+        <input
+            type="date"
+            name="follow_up_date"
+            value="{{ record['follow_up_date'] }}"
+        >
+
+        <br><br>
+
+        <button type="submit">
+            Update Medical Record
+        </button>
+
+    </form>
+
+    <br>
+
+    <a href="{{ url_for('view_medical_record', record_id=record['id']) }}">
+        Cancel
+    </a>
+
+</body>
+
+</html>

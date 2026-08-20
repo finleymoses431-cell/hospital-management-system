@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# SQLite database
+hospital.db
+
+# Environment variables / secrets
+.env
+
+# VS Code
+.vscode/
+
+# Backup files
+*.db.backup
+*.bak
+database/backups/

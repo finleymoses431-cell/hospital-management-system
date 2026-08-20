@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Billing</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background: #f4f7f9;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        h1 {
+            color: #164e63;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-top: 20px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 11px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        button {
+            margin-top: 18px;
+            padding: 11px 20px;
+            border: none;
+            border-radius: 6px;
+            background: #0f766e;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #115e59;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #164e63;
+            color: white;
+        }
+
+        .paid {
+            color: #15803d;
+            font-weight: bold;
+        }
+
+        .pending {
+            color: #d97706;
+            font-weight: bold;
+        }
+
+        .back {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #164e63;
+            font-weight: bold;
+        }
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>💰 Billing</h1>
+
+    <p>
+        Create and manage patient bills.
+    </p>
+
+
+    <!-- CREATE BILL -->
+
+    <div class="card">
+
+        <h2>Create New Bill</h2>
+
+        <form method="POST">
+
+            <label>Patient</label>
+
+            <select name="patient_id" required>
+
+                <option value="">
+                    Select Patient
+                </option>
+
+                {% for patient in patients %}
+
+                <option value="{{ patient['id'] }}">
+
+                    {{ patient['patient_number'] }}
+                    -
+                    {{ patient['first_name'] }}
+                    {{ patient['last_name'] }}
+
+                </option>
+
+                {% endfor %}
+
+            </select>
+
+
+            <label>Description</label>
+
+            <input
+                type="text"
+                name="description"
+                placeholder="e.g. Consultation"
+                required
+            >
+
+
+            <label>Amount (KSh)</label>
+
+            <input
+                type="number"
+                name="amount"
+                step="0.01"
+                min="0"
+                placeholder="Enter amount"
+                required
+            >
+
+
+            <label>Payment Status</label>
+
+            <select name="payment_status" required>
+
+                <option value="Pending">
+                    Pending
+                </option>
+
+                <option value="Paid">
+                    Paid
+                </option>
+
+            </select>
+
+
+            <button type="submit">
+                Create Bill
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- BILLING HISTORY -->
+
+    <div class="card">
+
+        <h2>Billing History</h2>
+
+        <table>
+
+            <tr>
+                <th>Bill Number</th>
+                <th>Patient</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Date</th>
+            </tr>
+
+
+            {% for bill in bills %}
+
+            <tr>
+
+                <td>
+                    {{ bill['bill_number'] }}
+                </td>
+
+                <td>
+                    {{ bill['first_name'] }}
+                    {{ bill['last_name'] }}
+                </td>
+
+                <td>
+                    {{ bill['description'] }}
+                </td>
+
+                <td>
+                    KSh {{ "%.2f"|format(bill['amount']) }}
+                </td>
+
+                <td>
+
+                    {% if bill['payment_status'] == "Paid" %}
+
+                        <span class="paid">
+                            Paid
+                        </span>
+
+                    {% else %}
+
+                        <span class="pending">
+                            Pending
+                        </span>
+
+                    {% endif %}
+
+                </td>
+
+                <td>
+                    {{ bill['billing_date'] }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+
+    <a href="{{ url_for('dashboard') }}" class="back">
+        ← Back to Dashboard
+    </a>
+
+</div>
+
+</body>
+
+</html>

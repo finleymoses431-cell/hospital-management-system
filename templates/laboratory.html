@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Laboratory - Hospital Management System</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f4f7f9;
+            color: #333;
+        }
+
+        .header {
+            background: #164e63;
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .back {
+            color: white;
+            text-decoration: none;
+            background: #0f766e;
+            padding: 10px 16px;
+            border-radius: 6px;
+        }
+
+        .container {
+            padding: 30px;
+            max-width: 1400px;
+            margin: auto;
+        }
+
+        .page-title {
+            margin-bottom: 25px;
+        }
+
+        .page-title h2 {
+            color: #164e63;
+            margin-bottom: 5px;
+        }
+
+        .page-title p {
+            color: #777;
+        }
+
+        .form-card,
+        .table-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+
+        .form-card h3,
+        .table-card h3 {
+            color: #164e63;
+            margin-bottom: 20px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 7px;
+            color: #444;
+        }
+
+        input,
+        select,
+        textarea {
+            padding: 11px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #0f766e;
+        }
+
+        .submit-btn {
+            margin-top: 20px;
+            background: #0f766e;
+            color: white;
+            border: none;
+            padding: 12px 22px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+        }
+
+        .submit-btn:hover {
+            background: #115e59;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            flex: 1;
+        }
+
+        .search-btn {
+            background: #164e63;
+            color: white;
+            border: none;
+            padding: 11px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .clear-btn {
+            background: #777;
+            color: white;
+            text-decoration: none;
+            padding: 11px 20px;
+            border-radius: 6px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+        }
+
+        th {
+            background: #164e63;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+
+        td {
+            padding: 11px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tr:hover {
+            background: #f5fafa;
+        }
+
+        .status {
+            padding: 6px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .cancelled {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .no-records {
+            text-align: center;
+            color: #777;
+            padding: 25px;
+        }
+
+        @media (max-width: 900px) {
+            .form-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="header">
+    <h1>🧪 Laboratory</h1>
+
+    <a href="{{ url_for('dashboard') }}" class="back">
+        ← Dashboard
+    </a>
+</header>
+
+<div class="container">
+
+    <div class="page-title">
+        <h2>Laboratory Management</h2>
+        <p>Register laboratory tests and manage patient test results.</p>
+    </div>
+
+
+    <!-- Register Laboratory Test -->
+
+    <div class="form-card">
+
+        <h3>Register Laboratory Test</h3>
+
+        <form method="POST">
+
+            <div class="form-grid">
+
+                <div class="form-group">
+                    <label>Test Number</label>
+                    <input
+                        type="text"
+                        name="test_number"
+                        placeholder="LAB-001"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label>Patient</label>
+
+                    <select name="patient_id" required>
+
+                        <option value="">Select Patient</option>
+
+                        {% for patient in patients %}
+
+                        <option value="{{ patient['id'] }}">
+                            {{ patient['patient_number'] }} -
+                            {{ patient['first_name'] }}
+                            {{ patient['last_name'] }}
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+                </div>
+
+
+                <div class="form-group">
+                    <label>Doctor</label>
+
+                    <select name="doctor_id" required>
+
+                        <option value="">Select Doctor</option>
+
+                        {% for doctor in doctors %}
+
+                        <option value="{{ doctor['id'] }}">
+                            {{ doctor['doctor_number'] }} -
+                            Dr. {{ doctor['first_name'] }}
+                            {{ doctor['last_name'] }}
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+                </div>
+
+
+                <div class="form-group">
+                    <label>Test Name</label>
+
+                    <input
+                        type="text"
+                        name="test_name"
+                        placeholder="e.g. Blood Test"
+                        required
+                    >
+                </div>
+
+
+                <div class="form-group">
+                    <label>Test Date</label>
+
+                    <input
+                        type="date"
+                        name="test_date"
+                        required
+                    >
+                </div>
+
+
+                <div class="form-group">
+                    <label>Status</label>
+
+                    <select name="status">
+
+                        <option value="Pending">Pending</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+
+                    </select>
+                </div>
+
+
+                <div class="form-group full">
+
+                    <label>Test Result</label>
+
+                    <textarea
+                        name="result"
+                        placeholder="Enter laboratory test result..."
+                    ></textarea>
+
+                </div>
+
+
+                <div class="form-group full">
+
+                    <label>Notes</label>
+
+                    <textarea
+                        name="notes"
+                        placeholder="Additional laboratory notes..."
+                    ></textarea>
+
+                </div>
+
+            </div>
+
+            <button type="submit" class="submit-btn">
+                🧪 Register Laboratory Test
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- Laboratory Records -->
+
+    <div class="table-card">
+
+        <h3>Laboratory Records</h3>
+
+
+        <!-- Search -->
+
+        <form method="GET" class="search-box">
+
+            <input
+                type="text"
+                name="search"
+                value="{{ search }}"
+                placeholder="Search by test number, patient or test name..."
+            >
+
+            <button type="submit" class="search-btn">
+                🔎 Search
+            </button>
+
+            <a href="{{ url_for('laboratory') }}" class="clear-btn">
+                Clear
+            </a>
+
+        </form>
+
+
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Test No.</th>
+                        <th>Patient</th>
+                        <th>Doctor</th>
+                        <th>Test</th>
+                        <th>Date</th>
+                        <th>Result</th>
+                        <th>Status</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for test in tests %}
+
+                    <tr>
+
+                        <td>
+                            {{ test['test_number'] }}
+                        </td>
+
+                        <td>
+                            {{ test['patient_first_name'] }}
+                            {{ test['patient_last_name'] }}
+                            <br>
+                            <small>
+                                {{ test['patient_number'] }}
+                            </small>
+                        </td>
+
+                        <td>
+                            Dr. {{ test['doctor_first_name'] }}
+                            {{ test['doctor_last_name'] }}
+                        </td>
+
+                        <td>
+                            {{ test['test_name'] }}
+                        </td>
+
+                        <td>
+                            {{ test['test_date'] }}
+                        </td>
+
+                        <td>
+                            {{ test['result'] or 'Pending' }}
+                        </td>
+
+                        <td>
+
+                            {% if test['status'] == 'Completed' %}
+
+                                <span class="status completed">
+                                    Completed
+                                </span>
+
+                            {% elif test['status'] == 'Cancelled' %}
+
+                                <span class="status cancelled">
+                                    Cancelled
+                                </span>
+
+                            {% else %}
+
+                                <span class="status pending">
+                                    Pending
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    {% else %}
+
+                    <tr>
+                        <td colspan="7" class="no-records">
+                            No laboratory tests found.
+                        </td>
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

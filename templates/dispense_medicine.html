@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Dispense Medicine</title>
+
+</head>
+
+<body>
+
+<h1>Dispense Medicine</h1>
+
+<hr>
+
+<form method="POST">
+
+    <label>Patient:</label>
+
+    <br>
+
+    <select name="patient_id" required>
+
+        <option value="">-- Select Patient --</option>
+
+        {% for patient in patients %}
+
+            <option value="{{ patient['id'] }}">
+
+                {{ patient['patient_number'] }}
+                -
+                {{ patient['first_name'] }}
+                {{ patient['last_name'] }}
+
+            </option>
+
+        {% endfor %}
+
+    </select>
+
+    <br><br>
+
+
+    <label>Medicine:</label>
+
+    <br>
+
+    <select name="medicine_id" required>
+
+        <option value="">-- Select Medicine --</option>
+
+        {% for medicine in medicines %}
+
+            <option value="{{ medicine['id'] }}">
+
+                {{ medicine['medicine_name'] }}
+                -
+                Stock: {{ medicine['quantity'] }}
+                -
+                KSh {{ medicine['unit_price'] }}
+
+            </option>
+
+        {% endfor %}
+
+    </select>
+
+    <br><br>
+
+
+    <label>Quantity to Dispense:</label>
+
+    <br>
+
+    <input
+        type="number"
+        name="quantity"
+        min="1"
+        required
+    >
+
+    <br><br>
+
+
+    <button type="submit">
+
+        Dispense Medicine
+
+    </button>
+
+</form>
+
+<br>
+
+<a href="{{ url_for('medicines') }}">
+    Back to Medicines
+</a>
+
+</body>
+
+</html>

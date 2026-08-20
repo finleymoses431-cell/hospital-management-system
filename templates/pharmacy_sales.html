@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Pharmacy Sales</title>
+
+</head>
+
+<body>
+
+<h1>Pharmacy Sales</h1>
+
+<hr>
+
+<h2>
+    Total Sales:
+    KSh {{ "%.2f"|format(total_sales) }}
+</h2>
+
+<br>
+
+<a href="{{ url_for('dispense_medicine') }}">
+    Dispense Medicine
+</a>
+
+<br><br>
+
+<table border="1">
+
+    <tr>
+        <th>Sale Number</th>
+        <th>Patient</th>
+        <th>Medicine</th>
+        <th>Quantity</th>
+        <th>Unit Price</th>
+        <th>Total Amount</th>
+        <th>Date</th>
+    </tr>
+
+    {% for sale in sales %}
+
+    <tr>
+
+        <td>
+            {{ sale['sale_number'] }}
+        </td>
+
+        <td>
+            {{ sale['patient_first_name'] }}
+            {{ sale['patient_last_name'] }}
+        </td>
+
+        <td>
+            {{ sale['medicine_name'] }}
+        </td>
+
+        <td>
+            {{ sale['quantity'] }}
+        </td>
+
+        <td>
+            KSh {{ "%.2f"|format(sale['unit_price']) }}
+        </td>
+
+        <td>
+            KSh {{ "%.2f"|format(sale['total_amount']) }}
+        </td>
+
+        <td>
+            {{ sale['sale_date'] }}
+        </td>
+
+    </tr>
+
+    {% endfor %}
+
+</table>
+
+<br>
+
+<a href="{{ url_for('medicines') }}">
+    Back to Medicines
+</a>
+
+</body>
+
+</html>

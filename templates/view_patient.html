@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Patient Details</title>
+</head>
+
+<body>
+
+    <h1>Patient Details</h1>
+
+    <p><strong>Patient Number:</strong> {{ patient["patient_number"] }}</p>
+
+    <p><strong>First Name:</strong> {{ patient["first_name"] }}</p>
+
+    <p><strong>Last Name:</strong> {{ patient["last_name"] }}</p>
+
+    <p><strong>Date of Birth:</strong> {{ patient["date_of_birth"] }}</p>
+
+    <p><strong>Gender:</strong> {{ patient["gender"] }}</p>
+
+    <p><strong>Phone:</strong> {{ patient["phone"] }}</p>
+
+    <p><strong>Address:</strong> {{ patient["address"] }}</p>
+
+    <p><strong>Blood Group:</strong> {{ patient["blood_group"] }}</p>
+
+    <p><strong>Emergency Contact:</strong> {{ patient["emergency_contact"] }}</p>
+
+    <p><strong>Registration Date:</strong> {{ patient["registration_date"] }}</p>
+
+    <br>
+
+    <a href="{{ url_for('patients') }}">Back to Patients</a>
+
+</body>
+</html>

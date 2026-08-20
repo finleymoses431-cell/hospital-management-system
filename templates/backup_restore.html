@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Backup & Restore - Hospital Management System</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f4f7f9;
+            color: #333;
+        }
+
+        .header {
+            background: #164e63;
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .back {
+            color: white;
+            text-decoration: none;
+            background: #0f766e;
+            padding: 10px 16px;
+            border-radius: 6px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        .intro {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .intro h2 {
+            color: #164e63;
+            margin-bottom: 8px;
+        }
+
+        .intro p {
+            color: #777;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+
+        .icon {
+            font-size: 45px;
+            margin-bottom: 15px;
+        }
+
+        .card h3 {
+            color: #164e63;
+            margin-bottom: 10px;
+        }
+
+        .card p {
+            color: #777;
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        button {
+            border: none;
+            padding: 12px 22px;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .backup-btn {
+            background: #0f766e;
+        }
+
+        .backup-btn:hover {
+            background: #115e59;
+        }
+
+        .restore-btn {
+            background: #dc2626;
+        }
+
+        .restore-btn:hover {
+            background: #b91c1c;
+        }
+
+        .message {
+            margin-bottom: 25px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .warning {
+            margin-top: 30px;
+            background: #fff7ed;
+            border-left: 5px solid #f59e0b;
+            padding: 18px;
+            border-radius: 8px;
+        }
+
+        .warning strong {
+            color: #92400e;
+        }
+
+        .footer {
+            text-align: center;
+            color: #888;
+            padding: 25px;
+            font-size: 13px;
+        }
+
+        @media (max-width: 700px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                margin: 20px auto;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 19px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="header">
+
+    <h1>💾 Database Backup & Restore</h1>
+
+    <a href="{{ url_for('dashboard') }}" class="back">
+        ← Dashboard
+    </a>
+
+</header>
+
+
+<div class="container">
+
+    <div class="intro">
+
+        <h2>Database Management</h2>
+
+        <p>
+            Protect your hospital records by creating regular database backups.
+        </p>
+
+    </div>
+
+
+    {% if message %}
+
+        <div class="message {{ message_type }}">
+            {{ message }}
+        </div>
+
+    {% endif %}
+
+
+    <div class="cards">
+
+        <!-- Backup -->
+
+        <div class="card">
+
+            <div class="icon">💾</div>
+
+            <h3>Backup Database</h3>
+
+            <p>
+                Create a backup copy of the hospital database
+                containing patients, doctors, appointments,
+                medical records, pharmacy, laboratory and billing data.
+            </p>
+
+            <form method="POST">
+
+                <input type="hidden" name="action" value="backup">
+
+                <button type="submit" class="backup-btn">
+                    💾 Create Backup
+                </button>
+
+            </form>
+
+        </div>
+
+
+        <!-- Restore -->
+
+        <div class="card">
+
+            <div class="icon">♻️</div>
+
+            <h3>Restore Database</h3>
+
+            <p>
+                Restore the hospital database from the most recent
+                backup that was created.
+            </p>
+
+            <form method="POST"
+                  onsubmit="return confirm(
+                    'WARNING: Restoring will replace the current database with the backup. Any newer records may be lost. Are you sure you want to continue?'
+                  );">
+
+                <input type="hidden" name="action" value="restore">
+
+                <button type="submit" class="restore-btn">
+                    ♻️ Restore Database
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <div class="warning">
+
+        <strong>⚠️ Important:</strong>
+
+        Always create a backup before making major changes
+        to the hospital system or restoring an older database.
+
+    </div>
+
+</div>
+
+
+<div class="footer">
+
+    Hospital Management System © 2026
+
+</div>
+
+</body>
+</html>

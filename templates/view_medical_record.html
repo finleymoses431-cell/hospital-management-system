@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>View Medical Record</title>
+</head>
+
+<body>
+
+    <h1>Medical Record</h1>
+
+    <p>
+        <strong>Record Number:</strong>
+        {{ record['record_number'] }}
+    </p>
+
+    <p>
+        <strong>Patient:</strong>
+        {{ record['patient_first_name'] }}
+        {{ record['patient_last_name'] }}
+    </p>
+
+    <p>
+        <strong>Patient Number:</strong>
+        {{ record['patient_number'] }}
+    </p>
+
+    <p>
+        <strong>Doctor:</strong>
+        {{ record['doctor_first_name'] }}
+        {{ record['doctor_last_name'] }}
+    </p>
+
+    <p>
+        <strong>Doctor Number:</strong>
+        {{ record['doctor_number'] }}
+    </p>
+
+    <p>
+        <strong>Specialization:</strong>
+        {{ record['specialization'] }}
+    </p>
+
+    <p>
+        <strong>Visit Date:</strong>
+        {{ record['visit_date'] }}
+    </p>
+
+    <hr>
+
+    <h3>Symptoms / Complaints</h3>
+    <p>{{ record['symptoms'] }}</p>
+
+    <h3>Diagnosis</h3>
+    <p>{{ record['diagnosis'] }}</p>
+
+    <h3>Treatment</h3>
+    <p>{{ record['treatment'] }}</p>
+
+    <h3>Prescription</h3>
+    <p>{{ record['prescription'] }}</p>
+
+    <h3>Follow-up Date</h3>
+    <p>{{ record['follow_up_date'] }}</p>
+
+    <br>
+
+    <a href="{{ url_for('medical_records') }}">
+        Back to Medical Records
+    </a>
+
+</body>
+
+</html>

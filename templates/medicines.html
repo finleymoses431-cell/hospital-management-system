@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Medicines</title>
+    <style>
+        /* Stock Status Badges */
+
+.stock-in {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: #22c55e;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.stock-low {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: #f59e0b;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.stock-out {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: #ef4444;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+
+/* Stock Summary */
+
+.stock-summary {
+    display: flex;
+    gap: 20px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.summary-card {
+    width: 220px;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+.summary-card h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+}
+
+.summary-card p {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 700;
+}
+
+.total-card {
+    background-color: #e0f2fe;
+    color: #075985;
+}
+
+.low-card {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.out-card {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+
+/* Expiry Status */
+
+.expiry-out {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: #ef4444;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.expiry-soon {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: #f59e0b;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.expiry-valid {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: #22c55e;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.expiry-none {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: #6b7280;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+/* Pharmacy Alerts */
+
+.pharmacy-alerts {
+    margin: 20px 0;
+}
+
+.alert {
+    padding: 14px 18px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.alert-out {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border-left: 5px solid #ef4444;
+}
+
+.alert-low {
+    background-color: #fef3c7;
+    color: #92400e;
+    border-left: 5px solid #f59e0b;
+}
+
+.alert-expired {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border-left: 5px solid #dc2626;
+}
+
+.alert-expiring {
+    background-color: #fef3c7;
+    color: #92400e;
+    border-left: 5px solid #d97706;
+}
+
+.alert-good {
+    background-color: #d1fae5;
+    color: #065f46;
+    border-left: 5px solid #22c55e;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Pharmacy / Medicines</h1>
+
+<h2>Register Medicine</h2>
+
+<form method="POST">
+
+    <label>Medicine Number:</label><br>
+    <input type="text" name="medicine_number" required>
+
+    <br><br>
+
+    <label>Medicine Name:</label><br>
+    <input type="text" name="medicine_name" required>
+
+    <br><br>
+
+    <label>Category:</label><br>
+    <input type="text" name="category">
+
+    <br><br>
+
+    <label>Quantity:</label><br>
+    <input type="number" name="quantity" min="0" required>
+
+    <br><br>
+
+    <label>Unit Price:</label><br>
+    <input type="number" name="unit_price" step="0.01" min="0">
+
+    <br><br>
+
+    <label>Expiry Date:</label><br>
+    <input type="date" name="expiry_date">
+
+    <br><br>
+
+    <label>Supplier:</label><br>
+    <input type="text" name="supplier">
+
+    <br><br>
+
+    <label>Description:</label><br>
+    <textarea name="description" rows="4" cols="40"></textarea>
+
+    <br><br>
+
+    <button type="submit">
+        Register Medicine
+    </button>
+
+</form>
+
+<hr>
+<!-- Pharmacy Stock Summary -->
+
+<div class="stock-summary">
+
+    <div class="summary-card total-card">
+        <h3>Total Medicines</h3>
+        <p>{{ total_medicines }}</p>
+    </div>
+
+    <div class="summary-card low-card">
+        <h3>Low Stock</h3>
+        <p>{{ low_stock_count }}</p>
+    </div>
+
+    <div class="summary-card out-card">
+        <h3>Out of Stock</h3>
+        <p>{{ out_of_stock_count }}</p>
+    </div>
+
+</div>
+<!-- Pharmacy Alerts -->
+
+<div class="pharmacy-alerts">
+
+    {% if out_of_stock_count > 0 %}
+        <div class="alert alert-out">
+            🔴 <strong>{{ out_of_stock_count }}</strong>
+            medicine(s) are out of stock.
+        </div>
+    {% endif %}
+
+    {% if low_stock_count > 0 %}
+        <div class="alert alert-low">
+            🟠 <strong>{{ low_stock_count }}</strong>
+            medicine(s) are low in stock.
+        </div>
+    {% endif %}
+
+    {% set expired_count = medicines | selectattr("expiry_status", "equalto", "Expired") | list | length %}
+
+    {% if expired_count > 0 %}
+        <div class="alert alert-expired">
+            🔴 <strong>{{ expired_count }}</strong>
+            medicine(s) have expired.
+        </div>
+    {% endif %}
+
+    {% set expiring_count = medicines | selectattr("expiry_status", "equalto", "Expiring Soon") | list | length %}
+
+    {% if expiring_count > 0 %}
+        <div class="alert alert-expiring">
+            🟠 <strong>{{ expiring_count }}</strong>
+            medicine(s) expire within 30 days.
+        </div>
+    {% endif %}
+
+    {% if out_of_stock_count == 0 and low_stock_count == 0 and expired_count == 0 and expiring_count == 0 %}
+        <div class="alert alert-good">
+            🟢 All medicines are currently in good stock and valid.
+        </div>
+    {% endif %}
+
+</div>
+
+<h2>Medicine Inventory</h2>
+
+<form method="GET" action="{{ url_for('medicines') }}">
+
+    <input
+        type="text"
+        name="search"
+        value="{{ search or '' }}"
+        placeholder="Search medicines..."
+    >
+
+    <button type="submit">Search</button>
+
+    {% if search %}
+        <a href="{{ url_for('medicines') }}">Clear</a>
+    {% endif %}
+
+</form>
+
+<br>
+
+<table border="1">
+
+    <tr>
+        <th>Medicine Number</th>
+        <th>Medicine Name</th>
+        <th>Category</th>
+        <th>Quantity</th>
+        <th>Stock Status</th>
+
+        <th>Unit Price</th>
+        <th>Expiry Date</th>
+        <th>Expiry Status</th>
+        <th>Supplier</th>
+        <th>Action</th>
+    </tr>
+
+   {% for item in medicines %}
+    {% set medicine = item.medicine %}
+
+    <tr>
+
+        <td>{{ medicine['medicine_number'] }}</td>
+        <td>{{ medicine['medicine_name'] }}</td>
+        <td>{{ medicine['category'] }}</td>
+        <td>{{ medicine['quantity'] }}</td>
+
+        <!-- Stock Status -->
+        <td>
+            {% if item.stock_status == "Out of Stock" %}
+                <span class="stock-out">Out of Stock</span>
+            {% elif item.stock_status == "Low Stock" %}
+                <span class="stock-low">Low Stock</span>
+            {% else %}
+                <span class="stock-in">In Stock</span>
+            {% endif %}
+        </td>
+
+        <td>{{ medicine['unit_price'] }}</td>
+        <td>{{ medicine['expiry_date'] }}</td>
+        <td>
+    {% if item.expiry_status == "Expired" %}
+        <span class="expiry-out">Expired</span>
+
+    {% elif item.expiry_status == "Expiring Soon" %}
+        <span class="expiry-soon">Expiring Soon</span>
+
+    {% elif item.expiry_status == "Valid" %}
+        <span class="expiry-valid">Valid</span>
+
+    {% else %}
+        <span class="expiry-none">No Expiry Date</span>
+    {% endif %}
+</td>
+        <td>{{ medicine['supplier'] }}</td>
+
+        <!-- Actions -->
+        <td>
+
+            <a href="{{ url_for('edit_medicine', medicine_id=medicine['id']) }}">
+                Edit
+            </a>
+
+            |
+
+            <form method="POST"
+                  action="{{ url_for('delete_medicine', medicine_id=medicine['id']) }}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Are you sure you want to delete this medicine?');">
+
+                <button type="submit">
+                    Delete
+                </button>
+
+            </form>
+
+        </td>
+
+    </tr>
+
+{% endfor %} 
+
+</table>
+
+</body>
+</html>
