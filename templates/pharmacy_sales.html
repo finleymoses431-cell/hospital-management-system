@@ -3,86 +3,305 @@
 
 <head>
 
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Pharmacy Sales</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 30px;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        h1 {
+            color: #164e63;
+        }
+
+        .sales-summary {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+
+        .sales-summary h2 {
+            margin: 0;
+            color: #0f766e;
+        }
+
+        .buttons {
+            margin: 20px 0;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            color: white;
+            margin-right: 8px;
+        }
+
+        .dispense-btn {
+            background: #0f766e;
+        }
+
+        .dispense-btn:hover {
+            background: #115e59;
+        }
+
+        .medicine-btn {
+            background: #164e63;
+        }
+
+        .medicine-btn:hover {
+            background: #0f3f50;
+        }
+
+        .table-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+
+        th {
+            background: #164e63;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        .receipt-btn {
+            background: #2563eb;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .receipt-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 30px;
+            color: #6b7280;
+        }
+
+    </style>
 
 </head>
 
+
 <body>
 
-<h1>Pharmacy Sales</h1>
+<div class="container">
 
-<hr>
+    <h1>💊 Pharmacy Sales</h1>
 
-<h2>
-    Total Sales:
-    KSh {{ "%.2f"|format(total_sales) }}
-</h2>
+    <hr>
 
-<br>
 
-<a href="{{ url_for('dispense_medicine') }}">
-    Dispense Medicine
-</a>
+    <!-- TOTAL SALES -->
 
-<br><br>
+    <div class="sales-summary">
 
-<table border="1">
+        <h2>
+            Total Sales:
+            KSh {{ "%.2f"|format(total_sales) }}
+        </h2>
 
-    <tr>
-        <th>Sale Number</th>
-        <th>Patient</th>
-        <th>Medicine</th>
-        <th>Quantity</th>
-        <th>Unit Price</th>
-        <th>Total Amount</th>
-        <th>Date</th>
-    </tr>
+    </div>
 
-    {% for sale in sales %}
 
-    <tr>
+    <!-- BUTTONS -->
 
-        <td>
-            {{ sale['sale_number'] }}
-        </td>
+    <div class="buttons">
 
-        <td>
-            {{ sale['patient_first_name'] }}
-            {{ sale['patient_last_name'] }}
-        </td>
+        <a
+            href="{{ url_for('dispense_medicine') }}"
+            class="btn dispense-btn"
+        >
+            + Dispense Medicine
+        </a>
 
-        <td>
-            {{ sale['medicine_name'] }}
-        </td>
 
-        <td>
-            {{ sale['quantity'] }}
-        </td>
+        <a
+            href="{{ url_for('medicines') }}"
+            class="btn medicine-btn"
+        >
+            Medicine Inventory
+        </a>
 
-        <td>
-            KSh {{ "%.2f"|format(sale['unit_price']) }}
-        </td>
+    </div>
 
-        <td>
-            KSh {{ "%.2f"|format(sale['total_amount']) }}
-        </td>
 
-        <td>
-            {{ sale['sale_date'] }}
-        </td>
+    <!-- SALES TABLE -->
 
-    </tr>
+    <div class="table-container">
 
-    {% endfor %}
+        <h2>Sales History</h2>
 
-</table>
+        <table>
 
-<br>
+            <thead>
 
-<a href="{{ url_for('medicines') }}">
-    Back to Medicines
-</a>
+                <tr>
 
-</body>
+                    <th>Sale Number</th>
 
-</html>
+                    <th>Patient</th>
+
+                    <th>Medicine</th>
+
+                    <th>Quantity</th>
+
+                    <th>Unit Price</th>
+
+                    <th>Total Amount</th>
+
+                    <th>Dispensed By</th>
+
+                    <th>Date</th>
+
+                    <th>Receipt</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for sale in sales %}
+
+                <tr>
+
+                    <!-- SALE NUMBER -->
+
+                    <td>
+                        <strong>
+                            {{ sale['sale_number'] }}
+                        </strong>
+                    </td>
+
+
+                    <!-- PATIENT -->
+
+                    <td>
+
+                        {{ sale['patient_first_name'] }}
+
+                        {{ sale['patient_last_name'] }}
+
+                        <br>
+
+                        <small>
+                            {{ sale['patient_number'] }}
+                        </small>
+
+                    </td>
+
+
+                    <!-- MEDICINE -->
+
+                    <td>
+
+                        {{ sale['medicine_name'] }}
+
+                        <br>
+
+                        <small>
+                            {{ sale['medicine_number'] }}
+                        </small>
+
+                    </td>
+
+
+                    <!-- QUANTITY -->
+
+                    <td>
+                        {{ sale['quantity'] }}
+                    </td>
+
+
+                    <!-- UNIT PRICE -->
+
+                    <td>
+                        KSh {{ "%.2f"|format(sale['unit_price']) }}
+                    </td>
+
+
+                    <!-- TOTAL PRICE -->
+
+                    <td>
+
+                        <strong>
+                            KSh {{ "%.2f"|format(sale['total_price']) }}
+                        </strong>
+
+                    </td>
+
+
+                    <!-- DISPENSED BY -->
+
+                    <td>
+                        {{ sale['dispensed_by'] or "-" }}
+                    </td>
+
+
+                    <!-- DATE -->
+
+                    <td>
+                        {{ sale['dispensing_date'] }}
+                    </td>
+
+
+                    <!-- RECEIPT -->
+
+                    <td>
+
+                        <a
+                            href="{{ url_for(
+                                'pharmacy_receipt',
+                                sale_number=sale['sale_number']
+                            ) }}"
+                            class="receipt-btn"
+                        >
+                            View Receipt
+                        </a>
+
+                    </td>
+
+                </

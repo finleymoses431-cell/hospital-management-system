@@ -1,14 +1,93 @@
-from flask import Flask, render_template, request, redirect, url_for, session
-from werkzeug.security import generate_password_hash, check_password_hash
-from database.database import get_connection, create_tables
-from datetime import datetime
-from functools import wraps
 import os
 import shutil
 from pathlib import Path
+from datetime import datetime
+from functools import wraps
 
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    abort
+)
+
+from flask_wtf.csrf import CSRFProtect
+
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
+
+from dotenv import load_dotenv
+
+from database.database import (
+    get_connection,
+    create_tables
+)
+
+
+# =========================================================
+# LOAD ENVIRONMENT VARIABLES
+# =========================================================
+
+load_dotenv()
+
+
+# =========================================================
+# FLASK APPLICATION
+# =========================================================
 
 app = Flask(__name__)
+
+
+# =========================================================
+# SECURITY CONFIGURATION
+# =========================================================
+
+secret_key = os.getenv("SECRET_KEY")
+
+if not secret_key:
+    raise RuntimeError(
+        "SECRET_KEY is missing. Please add SECRET_KEY to your .env file."
+    )
+
+app.config["SECRET_KEY"] = secret_key
+
+# Protect session cookies from JavaScript
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+
+# Helps protect against cross-site request attacks
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# Keep False while running on local HTTP.
+# Change to True when deployed with HTTPS.
+app.config["SESSION_COOKIE_SECURE"] = False
+
+# Session timeout: 30 minutes
+app.config["PERMANENT_SESSION_LIFETIME"] = 1800
+
+
+# =========================================================
+# CSRF PROTECTION
+# =========================================================
+
+csrf = CSRFProtect(app)
+
+
+# =========================================================
+# DATABASE INITIALIZATION
+# =========================================================
+
+create_tables()
+
+
+# =========================================================
+# ROLE PROTECTION
+# =========================================================
+
 def role_required(*allowed_roles):
 
     def decorator(function):
@@ -16,13 +95,16 @@ def role_required(*allowed_roles):
         @wraps(function)
         def wrapper(*args, **kwargs):
 
+            # User must be logged in
             if "user_id" not in session:
                 return redirect(url_for("login"))
 
+            # Get current user's role
             user_role = session.get("role")
 
+            # Verify role
             if user_role not in allowed_roles:
-                return "Access Denied: You do not have permission to access this page.", 403
+                abort(403)
 
             return function(*args, **kwargs)
 
@@ -30,9 +112,44 @@ def role_required(*allowed_roles):
 
     return decorator
 
-app.secret_key = "hospital-development-secret-key"
 
-create_tables()
+# =========================================================
+# ERROR HANDLERS
+# =========================================================
+
+@app.errorhandler(403)
+def forbidden(error):
+
+    return render_template(
+        "error.html",
+        error_code=403,
+        error_message="Access denied. You do not have permission to access this page."
+    ), 403
+
+
+@app.errorhandler(404)
+def page_not_found(error):
+
+    return render_template(
+        "error.html",
+        error_code=404,
+        error_message="The requested page could not be found."
+    ), 404
+
+
+@app.errorhandler(400)
+def bad_request(error):
+
+    return render_template(
+        "error.html",
+        error_code=400,
+        error_message="The request could not be processed."
+    ), 400
+
+
+# =========================================================
+# USERS / USER MANAGEMENT
+# =========================================================
 
 @app.route("/users", methods=["GET", "POST"])
 @role_required("Administrator")
@@ -42,15 +159,34 @@ def users():
 
     if request.method == "POST":
 
-        username = request.form["username"].strip()
-        password = request.form["password"]
-        role = request.form["role"]
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        role = request.form.get("role", "").strip()
+
+        allowed_roles = {
+            "Administrator",
+            "Doctor",
+            "Pharmacist",
+            "Laboratory Technician",
+            "Receptionist"
+        }
 
         if not username or not password or not role:
             connection.close()
             return "All fields are required.", 400
 
-        # Check if username already exists
+        if role not in allowed_roles:
+            connection.close()
+            return "Invalid role selected.", 400
+
+        if len(username) < 3:
+            connection.close()
+            return "Username must contain at least 3 characters.", 400
+
+        if len(password) < 8:
+            connection.close()
+            return "Password must contain at least 8 characters.", 400
+
         existing_user = connection.execute(
             "SELECT id FROM users WHERE username = ?",
             (username,)
@@ -60,11 +196,14 @@ def users():
             connection.close()
             return "Username already exists.", 400
 
-        # Hash password before saving
         hashed_password = generate_password_hash(password)
 
         connection.execute("""
-            INSERT INTO users (username, password, role)
+            INSERT INTO users (
+                username,
+                password,
+                role
+            )
             VALUES (?, ?, ?)
         """, (
             username,
@@ -74,7 +213,6 @@ def users():
 
         connection.commit()
 
-    # Get all users
     users_list = connection.execute("""
         SELECT id, username, role
         FROM users
@@ -89,29 +227,53 @@ def users():
     )
 
 
+# =========================================================
+# LOGIN
+# =========================================================
+
 @app.route("/", methods=["GET", "POST"])
 def login():
 
     if request.method == "POST":
 
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not username or not password:
+
+            return render_template(
+                "login.html",
+                error="Username and password are required."
+            )
 
         connection = get_connection()
-        
 
         user = connection.execute(
-            "SELECT * FROM users WHERE username = ?",
+            """
+            SELECT *
+            FROM users
+            WHERE username = ?
+            """,
             (username,)
         ).fetchone()
 
         connection.close()
 
-        if user and check_password_hash(user["password"], password):
+        if user and check_password_hash(
+            user["password"],
+            password
+        ):
 
+            # Clear any previous session data
+            session.clear()
+
+            # Store only necessary information
             session["user_id"] = user["id"]
             session["username"] = user["username"]
             session["role"] = user["role"]
+
+            # Make session temporary
+            session.permanent = True
 
             return redirect(url_for("dashboard"))
 
@@ -123,31 +285,46 @@ def login():
     return render_template("login.html")
 
 
+# =========================================================
+# LOGOUT
+# =========================================================
+
+@app.route("/logout")
+def logout():
+
+    session.clear()
+
+    return redirect(url_for("login"))
+
+
+# =========================================================
+# DASHBOARD
+# =========================================================
 
 @app.route("/dashboard")
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Pharmacist",
+    "Laboratory Technician",
+    "Receptionist"
+)
 def dashboard():
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
-    # Total patients
     total_patients = connection.execute(
         "SELECT COUNT(*) FROM patients"
     ).fetchone()[0]
 
-    # Total doctors
     total_doctors = connection.execute(
         "SELECT COUNT(*) FROM doctors"
     ).fetchone()[0]
 
-    # Total medicines
     total_medicines = connection.execute(
         "SELECT COUNT(*) FROM medicines"
     ).fetchone()[0]
 
-    # Low stock medicines
     low_stock_medicines = connection.execute("""
         SELECT COUNT(*)
         FROM medicines
@@ -155,21 +332,18 @@ def dashboard():
         AND quantity <= 10
     """).fetchone()[0]
 
-    # Out of stock medicines
     out_of_stock_medicines = connection.execute("""
         SELECT COUNT(*)
         FROM medicines
         WHERE quantity = 0
     """).fetchone()[0]
 
-    # Today's appointments
     today_appointments = connection.execute("""
         SELECT COUNT(*)
         FROM appointments
         WHERE date(appointment_date) = date('now')
     """).fetchone()[0]
 
-    # Today's pharmacy sales
     today_sales = connection.execute("""
         SELECT COALESCE(SUM(total_amount), 0)
         FROM pharmacy_sales
@@ -189,35 +363,80 @@ def dashboard():
         today_sales=today_sales
     )
 
-@app.route("/logout")
-def logout():
 
-    session.clear()
+# =========================================================
+# PATIENTS
+# =========================================================
 
-    return redirect(url_for("login"))
 @app.route("/patients", methods=["GET", "POST"])
-@role_required("Administrator", "Doctor", "Receptionist")
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Receptionist"
+)
 def patients():
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
     if request.method == "POST":
 
-        patient_number = request.form["patient_number"]
-        first_name = request.form["first_name"]
-        last_name = request.form["last_name"]
-        date_of_birth = request.form["date_of_birth"]
-        gender = request.form["gender"]
-        phone = request.form["phone"]
-        address = request.form["address"]
-        blood_group = request.form["blood_group"]
-        emergency_contact = request.form["emergency_contact"]
+        patient_number = request.form.get(
+            "patient_number", ""
+        ).strip()
 
-        connection.execute("""
-            INSERT INTO patients (
+        first_name = request.form.get(
+            "first_name", ""
+        ).strip()
+
+        last_name = request.form.get(
+            "last_name", ""
+        ).strip()
+
+        date_of_birth = request.form.get(
+            "date_of_birth", ""
+        ).strip()
+
+        gender = request.form.get(
+            "gender", ""
+        ).strip()
+
+        phone = request.form.get(
+            "phone", ""
+        ).strip()
+
+        address = request.form.get(
+            "address", ""
+        ).strip()
+
+        blood_group = request.form.get(
+            "blood_group", ""
+        ).strip()
+
+        emergency_contact = request.form.get(
+            "emergency_contact", ""
+        ).strip()
+
+        if not patient_number or not first_name or not last_name:
+            connection.close()
+            return "Patient number, first name and last name are required.", 400
+
+        try:
+
+            connection.execute("""
+                INSERT INTO patients (
+                    patient_number,
+                    first_name,
+                    last_name,
+                    date_of_birth,
+                    gender,
+                    phone,
+                    address,
+                    blood_group,
+                    emergency_contact,
+                    registration_date
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (
                 patient_number,
                 first_name,
                 last_name,
@@ -226,34 +445,31 @@ def patients():
                 phone,
                 address,
                 blood_group,
-                emergency_contact,
-                registration_date
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (
-            patient_number,
-            first_name,
-            last_name,
-            date_of_birth,
-            gender,
-            phone,
-            address,
-            blood_group,
-            emergency_contact
-        ))
+                emergency_contact
+            ))
 
-        connection.commit()
+            connection.commit()
+
+        except Exception:
+
+            connection.close()
+
+            return "Unable to register patient. Check that the patient number is unique.", 400
 
         connection.close()
 
         return redirect(url_for("patients"))
 
-    search = request.args.get("search", "").strip()
+    search = request.args.get(
+        "search",
+        ""
+    ).strip()
 
     if search:
 
         patients_list = connection.execute("""
-            SELECT * FROM patients
+            SELECT *
+            FROM patients
             WHERE patient_number LIKE ?
                OR first_name LIKE ?
                OR last_name LIKE ?
@@ -269,7 +485,8 @@ def patients():
     else:
 
         patients_list = connection.execute("""
-            SELECT * FROM patients
+            SELECT *
+            FROM patients
             ORDER BY id DESC
         """).fetchall()
 
@@ -280,16 +497,28 @@ def patients():
         patients=patients_list,
         search=search
     )
-@app.route("/patients/<int:patient_id>")
-def view_patient(patient_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# VIEW PATIENT
+# =========================================================
+
+@app.route("/patients/<int:patient_id>")
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Receptionist"
+)
+def view_patient(patient_id):
 
     connection = get_connection()
 
     patient = connection.execute(
-        "SELECT * FROM patients WHERE id = ?",
+        """
+        SELECT *
+        FROM patients
+        WHERE id = ?
+        """,
         (patient_id,)
     ).fetchone()
 
@@ -302,34 +531,83 @@ def view_patient(patient_id):
         "view_patient.html",
         patient=patient
     )
-@app.route("/patients/<int:patient_id>/edit", methods=["GET", "POST"])
-def edit_patient(patient_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# EDIT PATIENT
+# =========================================================
+
+@app.route(
+    "/patients/<int:patient_id>/edit",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Receptionist"
+)
+def edit_patient(patient_id):
 
     connection = get_connection()
 
     patient = connection.execute(
-        "SELECT * FROM patients WHERE id = ?",
+        """
+        SELECT *
+        FROM patients
+        WHERE id = ?
+        """,
         (patient_id,)
     ).fetchone()
 
     if patient is None:
+
         connection.close()
+
         return "Patient not found", 404
 
     if request.method == "POST":
 
-        patient_number = request.form["patient_number"]
-        first_name = request.form["first_name"]
-        last_name = request.form["last_name"]
-        date_of_birth = request.form["date_of_birth"]
-        gender = request.form["gender"]
-        phone = request.form["phone"]
-        address = request.form["address"]
-        blood_group = request.form["blood_group"]
-        emergency_contact = request.form["emergency_contact"]
+        patient_number = request.form.get(
+            "patient_number", ""
+        ).strip()
+
+        first_name = request.form.get(
+            "first_name", ""
+        ).strip()
+
+        last_name = request.form.get(
+            "last_name", ""
+        ).strip()
+
+        date_of_birth = request.form.get(
+            "date_of_birth", ""
+        ).strip()
+
+        gender = request.form.get(
+            "gender", ""
+        ).strip()
+
+        phone = request.form.get(
+            "phone", ""
+        ).strip()
+
+        address = request.form.get(
+            "address", ""
+        ).strip()
+
+        blood_group = request.form.get(
+            "blood_group", ""
+        ).strip()
+
+        emergency_contact = request.form.get(
+            "emergency_contact", ""
+        ).strip()
+
+        if not patient_number or not first_name or not last_name:
+
+            connection.close()
+
+            return "Required patient fields are missing.", 400
 
         connection.execute("""
             UPDATE patients
@@ -359,7 +637,12 @@ def edit_patient(patient_id):
         connection.commit()
         connection.close()
 
-        return redirect(url_for("view_patient", patient_id=patient_id))
+        return redirect(
+            url_for(
+                "view_patient",
+                patient_id=patient_id
+            )
+        )
 
     connection.close()
 
@@ -367,77 +650,156 @@ def edit_patient(patient_id):
         "edit_patient.html",
         patient=patient
     )
-@app.route("/patients/<int:patient_id>/delete", methods=["POST"])
-def delete_patient(patient_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# DELETE PATIENT
+# =========================================================
+@app.route(
+    "/patients/<int:patient_id>/delete",
+    methods=["POST"]
+)
+@role_required("Administrator")
+def delete_patient(patient_id):
 
     connection = get_connection()
 
-    connection.execute(
-        "DELETE FROM patients WHERE id = ?",
+    patient = connection.execute(
+        """
+        SELECT id
+        FROM patients
+        WHERE id = ?
+        """,
         (patient_id,)
-    )
+    ).fetchone()
 
-    connection.commit()
+    if patient is None:
+
+        connection.close()
+
+        return "Patient not found", 404
+
+    try:
+
+        connection.execute(
+            """
+            DELETE FROM patients
+            WHERE id = ?
+            """,
+            (patient_id,)
+        )
+
+        connection.commit()
+
+    except Exception:
+
+        connection.close()
+
+        return (
+            "Patient cannot be deleted because related records exist.",
+            400
+        )
+
     connection.close()
 
     return redirect(url_for("patients"))
-@app.route("/doctors", methods=["GET", "POST"])
-@role_required("Administrator", "Doctor")
-def doctors():
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# DOCTORS
+# =========================================================
+
+@app.route("/doctors", methods=["GET", "POST"])
+@role_required(
+    "Administrator",
+    "Doctor"
+)
+def doctors():
 
     connection = get_connection()
 
-    # Register Doctor
     if request.method == "POST":
 
-        doctor_number = request.form["doctor_number"]
-        first_name = request.form["first_name"]
-        last_name = request.form["last_name"]
-        specialization = request.form["specialization"]
-        phone = request.form["phone"]
-        email = request.form["email"]
-        department = request.form["department"]
+        doctor_number = request.form.get(
+            "doctor_number", ""
+        ).strip()
 
-        connection.execute("""
-            INSERT INTO doctors (
+        first_name = request.form.get(
+            "first_name", ""
+        ).strip()
+
+        last_name = request.form.get(
+            "last_name", ""
+        ).strip()
+
+        specialization = request.form.get(
+            "specialization", ""
+        ).strip()
+
+        phone = request.form.get(
+            "phone", ""
+        ).strip()
+
+        email = request.form.get(
+            "email", ""
+        ).strip()
+
+        department = request.form.get(
+            "department", ""
+        ).strip()
+
+        if not doctor_number or not first_name or not last_name:
+
+            connection.close()
+
+            return "Required doctor fields are missing.", 400
+
+        try:
+
+            connection.execute("""
+                INSERT INTO doctors (
+                    doctor_number,
+                    first_name,
+                    last_name,
+                    specialization,
+                    phone,
+                    email,
+                    department,
+                    registration_date
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (
                 doctor_number,
                 first_name,
                 last_name,
                 specialization,
                 phone,
                 email,
-                department,
-                registration_date
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (
-            doctor_number,
-            first_name,
-            last_name,
-            specialization,
-            phone,
-            email,
-            department
-        ))
+                department
+            ))
 
-        connection.commit()
+            connection.commit()
+
+        except Exception:
+
+            connection.close()
+
+            return "Unable to register doctor. Check that the doctor number is unique.", 400
+
         connection.close()
 
         return redirect(url_for("doctors"))
-  
-    # Search Doctors
-    search = request.args.get("search", "").strip()
+
+    search = request.args.get(
+        "search",
+        ""
+    ).strip()
 
     if search:
 
         doctors_list = connection.execute("""
-            SELECT * FROM doctors
+            SELECT *
+            FROM doctors
             WHERE doctor_number LIKE ?
                OR first_name LIKE ?
                OR last_name LIKE ?
@@ -455,7 +817,8 @@ def doctors():
     else:
 
         doctors_list = connection.execute("""
-            SELECT * FROM doctors
+            SELECT *
+            FROM doctors
             ORDER BY id DESC
         """).fetchall()
 
@@ -468,69 +831,275 @@ def doctors():
     )
 
 
+# =========================================================
+# EDIT DOCTOR
+# =========================================================
 
-@app.route("/appointments", methods=["GET", "POST"])
-@role_required("Administrator", "Doctor", "Receptionist")
-def appointments():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+@app.route(
+    "/doctors/<int:doctor_id>/edit",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Doctor"
+)
+def edit_doctor(doctor_id):
 
     connection = get_connection()
 
-    # Get patients for the patient dropdown
+    doctor = connection.execute(
+        """
+        SELECT *
+        FROM doctors
+        WHERE id = ?
+        """,
+        (doctor_id,)
+    ).fetchone()
+
+    if doctor is None:
+
+        connection.close()
+
+        return "Doctor not found", 404
+
+    if request.method == "POST":
+
+        doctor_number = request.form.get(
+            "doctor_number", ""
+        ).strip()
+
+        first_name = request.form.get(
+            "first_name", ""
+        ).strip()
+
+        last_name = request.form.get(
+            "last_name", ""
+        ).strip()
+
+        specialization = request.form.get(
+            "specialization", ""
+        ).strip()
+
+        phone = request.form.get(
+            "phone", ""
+        ).strip()
+
+        email = request.form.get(
+            "email", ""
+        ).strip()
+
+        department = request.form.get(
+            "department", ""
+        ).strip()
+
+        connection.execute("""
+            UPDATE doctors
+            SET doctor_number = ?,
+                first_name = ?,
+                last_name = ?,
+                specialization = ?,
+                phone = ?,
+                email = ?,
+                department = ?
+            WHERE id = ?
+        """, (
+            doctor_number,
+            first_name,
+            last_name,
+            specialization,
+            phone,
+            email,
+            department,
+            doctor_id
+        ))
+
+        connection.commit()
+        connection.close()
+
+        return redirect(
+            url_for(
+                "doctors"
+            )
+        )
+
+    connection.close()
+
+    return render_template(
+        "edit_doctor.html",
+        doctor=doctor
+    )
+
+
+# =========================================================
+# DELETE DOCTOR
+# =========================================================
+
+@app.route(
+    "/doctors/<int:doctor_id>/delete",
+    methods=["POST"]
+)
+@role_required("Administrator")
+def delete_doctor(doctor_id):
+
+    connection = get_connection()
+
+    doctor = connection.execute(
+        """
+        SELECT id
+        FROM doctors
+        WHERE id = ?
+        """,
+        (doctor_id,)
+    ).fetchone()
+
+    if doctor is None:
+
+        connection.close()
+
+        return "Doctor not found", 404
+
+    try:
+
+        connection.execute(
+            """
+            DELETE FROM doctors
+            WHERE id = ?
+            """,
+            (doctor_id,)
+        )
+
+        connection.commit()
+
+    except Exception:
+
+        connection.close()
+
+        return (
+            "Doctor cannot be deleted because related records exist.",
+            400
+        )
+
+    connection.close()
+
+    return redirect(url_for("doctors"))
+
+
+# =========================================================
+# APPOINTMENTS
+# =========================================================
+
+@app.route(
+    "/appointments",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Receptionist"
+)
+def appointments():
+
+    connection = get_connection()
+
     patients_list = connection.execute("""
-        SELECT id, patient_number, first_name, last_name
+        SELECT
+            id,
+            patient_number,
+            first_name,
+            last_name
         FROM patients
         ORDER BY first_name
     """).fetchall()
 
-    # Get doctors for the doctor dropdown
     doctors_list = connection.execute("""
-        SELECT id, doctor_number, first_name, last_name, specialization
+        SELECT
+            id,
+            doctor_number,
+            first_name,
+            last_name,
+            specialization
         FROM doctors
         ORDER BY first_name
     """).fetchall()
 
-    # Register Appointment
     if request.method == "POST":
 
-        appointment_number = request.form["appointment_number"]
-        patient_id = request.form["patient_id"]
-        doctor_id = request.form["doctor_id"]
-        appointment_date = request.form["appointment_date"]
-        appointment_time = request.form["appointment_time"]
-        reason = request.form["reason"]
-        status = request.form["status"]
+        appointment_number = request.form.get(
+            "appointment_number", ""
+        ).strip()
 
-        connection.execute("""
-            INSERT INTO appointments (
+        patient_id = request.form.get(
+            "patient_id", ""
+        )
+
+        doctor_id = request.form.get(
+            "doctor_id", ""
+        )
+
+        appointment_date = request.form.get(
+            "appointment_date", ""
+        )
+
+        appointment_time = request.form.get(
+            "appointment_time", ""
+        )
+
+        reason = request.form.get(
+            "reason", ""
+        ).strip()
+
+        status = request.form.get(
+            "status", ""
+        ).strip()
+
+        if not appointment_number or not patient_id or not doctor_id:
+
+            connection.close()
+
+            return "Required appointment fields are missing.", 400
+
+        try:
+
+            connection.execute("""
+                INSERT INTO appointments (
+                    appointment_number,
+                    patient_id,
+                    doctor_id,
+                    appointment_date,
+                    appointment_time,
+                    reason,
+                    status,
+                    registration_date
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (
                 appointment_number,
                 patient_id,
                 doctor_id,
                 appointment_date,
                 appointment_time,
                 reason,
-                status,
-                registration_date
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (
-            appointment_number,
-            patient_id,
-            doctor_id,
-            appointment_date,
-            appointment_time,
-            reason,
-            status
-        ))
+                status
+            ))
 
-        connection.commit()
+            connection.commit()
+
+        except Exception:
+
+            connection.close()
+
+            return "Unable to create appointment.", 400
+
         connection.close()
 
-        return redirect(url_for("appointments"))
+        return redirect(
+            url_for("appointments")
+        )
 
-    # Search Appointments
-    search = request.args.get("search", "").strip()
+    search = request.args.get(
+        "search",
+        ""
+    ).strip()
 
     if search:
 
@@ -565,7 +1134,6 @@ def appointments():
 
     else:
 
-        # Get all appointments
         appointments_list = connection.execute("""
             SELECT
                 appointments.*,
@@ -591,254 +1159,19 @@ def appointments():
         doctors=doctors_list,
         search=search
     )
-@app.route("/laboratory", methods=["GET", "POST"])
-@role_required("Administrator", "Doctor", "Laboratory Technician")
-def laboratory():
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
-    connection = get_connection()
-
-    # Get patients
-    patients_list = connection.execute("""
-        SELECT id, patient_number, first_name, last_name
-        FROM patients
-        ORDER BY first_name
-    """).fetchall()
-
-    # Get doctors
-    doctors_list = connection.execute("""
-        SELECT id, doctor_number, first_name, last_name, specialization
-        FROM doctors
-        ORDER BY first_name
-    """).fetchall()
-
-    # Register laboratory test
-    if request.method == "POST":
-
-        test_number = request.form["test_number"]
-        patient_id = request.form["patient_id"]
-        doctor_id = request.form["doctor_id"]
-        test_name = request.form["test_name"]
-        test_date = request.form["test_date"]
-        result = request.form.get("result", "")
-        status = request.form["status"]
-        notes = request.form.get("notes", "")
-
-        connection.execute("""
-            INSERT INTO laboratory_tests (
-                test_number,
-                patient_id,
-                doctor_id,
-                test_name,
-                test_date,
-                result,
-                status,
-                notes
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            test_number,
-            patient_id,
-            doctor_id,
-            test_name,
-            test_date,
-            result,
-            status,
-            notes
-        ))
-
-        connection.commit()
-        connection.close()
-
-        return redirect(url_for("laboratory"))
-
-    # Search laboratory tests
-    search = request.args.get("search", "").strip()
-
-    if search:
-
-        tests_list = connection.execute("""
-            SELECT
-                laboratory_tests.*,
-
-                patients.patient_number,
-                patients.first_name AS patient_first_name,
-                patients.last_name AS patient_last_name,
-
-                doctors.doctor_number,
-                doctors.first_name AS doctor_first_name,
-                doctors.last_name AS doctor_last_name
-
-            FROM laboratory_tests
-
-            JOIN patients
-                ON laboratory_tests.patient_id = patients.id
-
-            JOIN doctors
-                ON laboratory_tests.doctor_id = doctors.id
-
-            WHERE laboratory_tests.test_number LIKE ?
-               OR laboratory_tests.test_name LIKE ?
-               OR patients.patient_number LIKE ?
-               OR patients.first_name LIKE ?
-               OR patients.last_name LIKE ?
-
-            ORDER BY laboratory_tests.id DESC
-
-        """, (
-            f"%{search}%",
-            f"%{search}%",
-            f"%{search}%",
-            f"%{search}%",
-            f"%{search}%"
-        )).fetchall()
-
-    else:
-
-        tests_list = connection.execute("""
-            SELECT
-                laboratory_tests.*,
-
-                patients.patient_number,
-                patients.first_name AS patient_first_name,
-                patients.last_name AS patient_last_name,
-
-                doctors.doctor_number,
-                doctors.first_name AS doctor_first_name,
-                doctors.last_name AS doctor_last_name
-
-            FROM laboratory_tests
-
-            JOIN patients
-                ON laboratory_tests.patient_id = patients.id
-
-            JOIN doctors
-                ON laboratory_tests.doctor_id = doctors.id
-
-            ORDER BY laboratory_tests.id DESC
-
-        """).fetchall()
-
-    connection.close()
-
-    return render_template(
-        "laboratory.html",
-        patients=patients_list,
-        doctors=doctors_list,
-        tests=tests_list,
-        search=search
-    )
-@app.route("/billing", methods=["GET", "POST"])
-@role_required("Administrator", "Receptionist")
-def billing():
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    connection = get_connection()
-
-    # Get patients
-    patients = connection.execute("""
-        SELECT id, patient_number, first_name, last_name
-        FROM patients
-        ORDER BY first_name
-    """).fetchall()
-
-    # Create manual bill
-    if request.method == "POST":
-
-        patient_id = request.form["patient_id"]
-        description = request.form["description"]
-        amount = float(request.form["amount"])
-        payment_status = request.form["payment_status"]
-
-        bill_number = "BILL-" + datetime.now().strftime("%Y%m%d%H%M%S")
-
-        connection.execute("""
-            INSERT INTO bills (
-                bill_number,
-                patient_id,
-                description,
-                amount,
-                payment_status
-            )
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            bill_number,
-            patient_id,
-            description,
-            amount,
-            payment_status
-        ))
-
-        connection.commit()
-
-    # Manual bills
-    bills = connection.execute("""
-        SELECT
-            bills.*,
-            patients.patient_number,
-            patients.first_name,
-            patients.last_name
-        FROM bills
-        JOIN patients
-            ON bills.patient_id = patients.id
-        ORDER BY bills.id DESC
-    """).fetchall()
-
-    # Pharmacy charges
-    pharmacy_charges = connection.execute("""
-        SELECT
-            pharmacy_sales.id,
-            pharmacy_sales.sale_number,
-            pharmacy_sales.patient_id,
-            pharmacy_sales.quantity,
-            pharmacy_sales.unit_price,
-            pharmacy_sales.total_amount,
-            medicines.medicine_name,
-            patients.patient_number,
-            patients.first_name,
-            patients.last_name
-        FROM pharmacy_sales
-        JOIN medicines
-            ON pharmacy_sales.medicine_id = medicines.id
-        JOIN patients
-            ON pharmacy_sales.patient_id = patients.id
-        ORDER BY pharmacy_sales.id DESC
-    """).fetchall()
-
-    # Calculate totals
-    manual_total = connection.execute("""
-        SELECT COALESCE(SUM(amount), 0)
-        FROM bills
-    """).fetchone()[0]
-
-    pharmacy_total = connection.execute("""
-        SELECT COALESCE(SUM(total_amount), 0)
-        FROM pharmacy_sales
-    """).fetchone()[0]
-
-    grand_total = manual_total + pharmacy_total
-
-    connection.close()
-
-    return render_template(
-        "billing.html",
-        patients=patients,
-        bills=bills,
-        pharmacy_charges=pharmacy_charges,
-        manual_total=manual_total,
-        pharmacy_total=pharmacy_total,
-        grand_total=grand_total
-    )
+# =========================================================
+# VIEW APPOINTMENT
+# =========================================================
 
 @app.route("/appointments/<int:appointment_id>")
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Receptionist"
+)
 def view_appointment(appointment_id):
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
@@ -863,6 +1196,7 @@ def view_appointment(appointment_id):
     connection.close()
 
     if appointment is None:
+
         return "Appointment not found", 404
 
     return render_template(
@@ -870,48 +1204,86 @@ def view_appointment(appointment_id):
         appointment=appointment
     )
 
-@app.route("/appointments/<int:appointment_id>/edit", methods=["GET", "POST"])
-def edit_appointment(appointment_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+# =========================================================
+# EDIT APPOINTMENT
+# =========================================================
+
+@app.route(
+    "/appointments/<int:appointment_id>/edit",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Receptionist"
+)
+def edit_appointment(appointment_id):
 
     connection = get_connection()
 
-    # Get the appointment
     appointment = connection.execute("""
-        SELECT * FROM appointments
+        SELECT *
+        FROM appointments
         WHERE id = ?
     """, (appointment_id,)).fetchone()
 
     if appointment is None:
+
         connection.close()
+
         return "Appointment not found", 404
 
-    # Get patients
     patients_list = connection.execute("""
-        SELECT id, patient_number, first_name, last_name
+        SELECT
+            id,
+            patient_number,
+            first_name,
+            last_name
         FROM patients
         ORDER BY first_name
     """).fetchall()
 
-    # Get doctors
     doctors_list = connection.execute("""
-        SELECT id, doctor_number, first_name, last_name, specialization
+        SELECT
+            id,
+            doctor_number,
+            first_name,
+            last_name,
+            specialization
         FROM doctors
         ORDER BY first_name
     """).fetchall()
 
-    # Update appointment
     if request.method == "POST":
 
-        appointment_number = request.form["appointment_number"]
-        patient_id = request.form["patient_id"]
-        doctor_id = request.form["doctor_id"]
-        appointment_date = request.form["appointment_date"]
-        appointment_time = request.form["appointment_time"]
-        reason = request.form["reason"]
-        status = request.form["status"]
+        appointment_number = request.form.get(
+            "appointment_number", ""
+        ).strip()
+
+        patient_id = request.form.get(
+            "patient_id", ""
+        )
+
+        doctor_id = request.form.get(
+            "doctor_id", ""
+        )
+
+        appointment_date = request.form.get(
+            "appointment_date", ""
+        )
+
+        appointment_time = request.form.get(
+            "appointment_time", ""
+        )
+
+        reason = request.form.get(
+            "reason", ""
+        ).strip()
+
+        status = request.form.get(
+            "status", ""
+        ).strip()
 
         connection.execute("""
             UPDATE appointments
@@ -952,21 +1324,31 @@ def edit_appointment(appointment_id):
         patients=patients_list,
         doctors=doctors_list
     )
-@app.route("/appointments/<int:appointment_id>/delete", methods=["POST"])
-def delete_appointment(appointment_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# DELETE APPOINTMENT
+# =========================================================
+
+@app.route(
+    "/appointments/<int:appointment_id>/delete",
+    methods=["POST"]
+)
+@role_required("Administrator")
+def delete_appointment(appointment_id):
 
     connection = get_connection()
 
     appointment = connection.execute("""
-        SELECT id FROM appointments
+        SELECT id
+        FROM appointments
         WHERE id = ?
     """, (appointment_id,)).fetchone()
 
     if appointment is None:
+
         connection.close()
+
         return "Appointment not found", 404
 
     connection.execute("""
@@ -977,21 +1359,386 @@ def delete_appointment(appointment_id):
     connection.commit()
     connection.close()
 
-    return redirect(url_for("appointments"))
-@app.route("/pharmacy/dispense", methods=["GET", "POST"])
-@role_required("Administrator", "Pharmacist")
-def dispense_medicine():
+    return redirect(
+        url_for("appointments")
+    )
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# LABORATORY
+# =========================================================
+
+@app.route(
+    "/laboratory",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Doctor",
+    "Laboratory Technician"
+)
+def laboratory():
+
+    connection = get_connection()
+
+    patients_list = connection.execute("""
+        SELECT
+            id,
+            patient_number,
+            first_name,
+            last_name
+        FROM patients
+        ORDER BY first_name
+    """).fetchall()
+
+    doctors_list = connection.execute("""
+        SELECT
+            id,
+            doctor_number,
+            first_name,
+            last_name,
+            specialization
+        FROM doctors
+        ORDER BY first_name
+    """).fetchall()
+
+    if request.method == "POST":
+
+        test_number = request.form.get(
+            "test_number", ""
+        ).strip()
+
+        patient_id = request.form.get(
+            "patient_id", ""
+        )
+
+        doctor_id = request.form.get(
+            "doctor_id", ""
+        )
+
+        test_name = request.form.get(
+            "test_name", ""
+        ).strip()
+
+        test_date = request.form.get(
+            "test_date", ""
+        )
+
+        result = request.form.get(
+            "result",
+            ""
+        ).strip()
+
+        status = request.form.get(
+            "status",
+            ""
+        ).strip()
+
+        notes = request.form.get(
+            "notes",
+            ""
+        ).strip()
+
+        if not test_number or not patient_id or not doctor_id or not test_name:
+
+            connection.close()
+
+            return "Required laboratory fields are missing.", 400
+
+        connection.execute("""
+            INSERT INTO laboratory_tests (
+                test_number,
+                patient_id,
+                doctor_id,
+                test_name,
+                test_date,
+                result,
+                status,
+                notes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            test_number,
+            patient_id,
+            doctor_id,
+            test_name,
+            test_date,
+            result,
+            status,
+            notes
+        ))
+
+        connection.commit()
+        connection.close()
+
+        return redirect(
+            url_for("laboratory")
+        )
+
+    search = request.args.get(
+        "search",
+        ""
+    ).strip()
+
+    if search:
+
+        tests_list = connection.execute("""
+            SELECT
+                laboratory_tests.*,
+                patients.patient_number,
+                patients.first_name AS patient_first_name,
+                patients.last_name AS patient_last_name,
+                doctors.doctor_number,
+                doctors.first_name AS doctor_first_name,
+                doctors.last_name AS doctor_last_name
+            FROM laboratory_tests
+            JOIN patients
+                ON laboratory_tests.patient_id = patients.id
+            JOIN doctors
+                ON laboratory_tests.doctor_id = doctors.id
+            WHERE laboratory_tests.test_number LIKE ?
+               OR laboratory_tests.test_name LIKE ?
+               OR patients.patient_number LIKE ?
+               OR patients.first_name LIKE ?
+               OR patients.last_name LIKE ?
+            ORDER BY laboratory_tests.id DESC
+        """, (
+            f"%{search}%",
+            f"%{search}%",
+            f"%{search}%",
+            f"%{search}%",
+            f"%{search}%"
+        )).fetchall()
+
+    else:
+
+        tests_list = connection.execute("""
+            SELECT
+                laboratory_tests.*,
+                patients.patient_number,
+                patients.first_name AS patient_first_name,
+                patients.last_name AS patient_last_name,
+                doctors.doctor_number,
+                doctors.first_name AS doctor_first_name,
+                doctors.last_name AS doctor_last_name
+            FROM laboratory_tests
+            JOIN patients
+                ON laboratory_tests.patient_id = patients.id
+            JOIN doctors
+                ON laboratory_tests.doctor_id = doctors.id
+            ORDER BY laboratory_tests.id DESC
+        """).fetchall()
+
+    connection.close()
+
+    return render_template(
+        "laboratory.html",
+        patients=patients_list,
+        doctors=doctors_list,
+        tests=tests_list,
+        search=search
+    )
+
+
+# =========================================================
+# BILLING
+# =========================================================
+
+@app.route(
+    "/billing",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Receptionist"
+)
+def billing():
+
+    connection = get_connection()
+
+    patients = connection.execute("""
+        SELECT
+            id,
+            patient_number,
+            first_name,
+            last_name
+        FROM patients
+        ORDER BY first_name
+    """).fetchall()
+
+    if request.method == "POST":
+
+        patient_id = request.form.get(
+            "patient_id",
+            ""
+        )
+
+        description = request.form.get(
+            "description",
+            ""
+        ).strip()
+
+        amount_text = request.form.get(
+            "amount",
+            ""
+        )
+
+        payment_status = request.form.get(
+            "payment_status",
+            ""
+        ).strip()
+
+        try:
+
+            amount = float(amount_text)
+
+        except (ValueError, TypeError):
+
+            connection.close()
+
+            return "Invalid billing amount.", 400
+
+        if amount <= 0:
+
+            connection.close()
+
+            return "Billing amount must be greater than zero.", 400
+
+        if not patient_id or not description or not payment_status:
+
+            connection.close()
+
+            return "All billing fields are required.", 400
+
+        bill_number = (
+            "BILL-" +
+            datetime.now().strftime("%Y%m%d%H%M%S%f")
+        )
+
+        connection.execute("""
+            INSERT INTO bills (
+                bill_number,
+                patient_id,
+                description,
+                amount,
+                payment_status
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            bill_number,
+            patient_id,
+            description,
+            amount,
+            payment_status
+        ))
+
+        connection.commit()
+
+    bills = connection.execute("""
+        SELECT
+            bills.*,
+            patients.patient_number,
+            patients.first_name,
+            patients.last_name
+        FROM bills
+        JOIN patients
+            ON bills.patient_id = patients.id
+        ORDER BY bills.id DESC
+    """).fetchall()
+
+    pharmacy_charges = connection.execute("""
+        SELECT
+            pharmacy_sales.id,
+            pharmacy_sales.sale_number,
+            pharmacy_sales.patient_id,
+            pharmacy_sales.quantity,
+            pharmacy_sales.unit_price,
+            pharmacy_sales.total_amount,
+            medicines.medicine_name,
+            patients.patient_number,
+            patients.first_name,
+            patients.last_name
+        FROM pharmacy_sales
+        JOIN medicines
+            ON pharmacy_sales.medicine_id = medicines.id
+        JOIN patients
+            ON pharmacy_sales.patient_id = patients.id
+        ORDER BY pharmacy_sales.id DESC
+    """).fetchall()
+
+    manual_total = connection.execute("""
+        SELECT COALESCE(SUM(amount), 0)
+        FROM bills
+    """).fetchone()[0]
+
+    pharmacy_total = connection.execute("""
+        SELECT COALESCE(SUM(total_amount), 0)
+        FROM pharmacy_sales
+    """).fetchone()[0]
+
+    grand_total = manual_total + pharmacy_total
+
+    connection.close()
+
+    return render_template(
+        "billing.html",
+        patients=patients,
+        bills=bills,
+        pharmacy_charges=pharmacy_charges,
+        manual_total=manual_total,
+        pharmacy_total=pharmacy_total,
+        grand_total=grand_total
+    )
+
+
+# =========================================================
+# PHARMACY - DISPENSE
+# =========================================================
+
+@app.route(
+    "/pharmacy/dispense",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Pharmacist"
+)
+def dispense_medicine():
 
     connection = get_connection()
 
     if request.method == "POST":
 
-        patient_id = request.form["patient_id"]
-        medicine_id = request.form["medicine_id"]
-        quantity = int(request.form["quantity"])
+        patient_id = request.form.get(
+            "patient_id",
+            ""
+        )
+
+        medicine_id = request.form.get(
+            "medicine_id",
+            ""
+        )
+
+        quantity_text = request.form.get(
+            "quantity",
+            ""
+        )
+
+        try:
+
+            quantity = int(quantity_text)
+
+        except (ValueError, TypeError):
+
+            connection.close()
+
+            return "Invalid quantity.", 400
+
+        if quantity <= 0:
+
+            connection.close()
+
+            return "Quantity must be greater than zero.", 400
 
         medicine = connection.execute("""
             SELECT *
@@ -1000,18 +1747,23 @@ def dispense_medicine():
         """, (medicine_id,)).fetchone()
 
         if medicine is None:
+
             connection.close()
+
             return "Medicine not found", 404
 
-        available_quantity = int(medicine["quantity"])
-        unit_price = float(medicine["unit_price"])
+        available_quantity = int(
+            medicine["quantity"]
+        )
 
-        if quantity <= 0:
-            connection.close()
-            return "Invalid quantity", 400
+        unit_price = float(
+            medicine["unit_price"]
+        )
 
         if quantity > available_quantity:
+
             connection.close()
+
             return (
                 f"Not enough stock available. "
                 f"Available: {available_quantity}, "
@@ -1020,7 +1772,10 @@ def dispense_medicine():
 
         total_amount = quantity * unit_price
 
-        sale_number = "SALE-" + datetime.now().strftime("%Y%m%d%H%M%S")
+        sale_number = (
+            "SALE-" +
+            datetime.now().strftime("%Y%m%d%H%M%S%f")
+        )
 
         connection.execute("""
             INSERT INTO pharmacy_sales (
@@ -1055,16 +1810,32 @@ def dispense_medicine():
         connection.commit()
         connection.close()
 
-        return redirect(url_for("pharmacy_receipt", sale_number=sale_number))
+        return redirect(
+            url_for(
+                "pharmacy_receipt",
+                sale_number=sale_number
+            )
+        )
+
     patients = connection.execute("""
-        SELECT id, patient_number, first_name, last_name
+        SELECT
+            id,
+            patient_number,
+            first_name,
+            last_name
         FROM patients
         ORDER BY first_name
     """).fetchall()
 
     medicines = connection.execute("""
-        SELECT id, medicine_number, medicine_name, quantity, unit_price
+        SELECT
+            id,
+            medicine_number,
+            medicine_name,
+            quantity,
+            unit_price
         FROM medicines
+        WHERE quantity > 0
         ORDER BY medicine_name
     """).fetchall()
 
@@ -1075,11 +1846,20 @@ def dispense_medicine():
         patients=patients,
         medicines=medicines
     )
-@app.route("/pharmacy/receipt/<sale_number>")
-def pharmacy_receipt(sale_number):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# PHARMACY RECEIPT
+# =========================================================
+
+@app.route(
+    "/pharmacy/receipt/<sale_number>"
+)
+@role_required(
+    "Administrator",
+    "Pharmacist"
+)
+def pharmacy_receipt(sale_number):
 
     connection = get_connection()
 
@@ -1102,17 +1882,25 @@ def pharmacy_receipt(sale_number):
     connection.close()
 
     if sale is None:
+
         return "Sale not found", 404
 
     return render_template(
         "pharmacy_receipt.html",
         sale=sale
     )
+
+
+# =========================================================
+# PHARMACY SALES
+# =========================================================
+
 @app.route("/pharmacy/sales")
-@role_required("Administrator" , "Pharmacist")
+@role_required(
+    "Administrator",
+    "Pharmacist"
+)
 def pharmacy_sales():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
@@ -1145,41 +1933,96 @@ def pharmacy_sales():
         total_sales=total_sales
     )
 
-@app.route("/medical_records", methods=["GET", "POST"])
-@role_required("Administrator", "Doctor")
-def medical_records():
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+# =========================================================
+# MEDICAL RECORDS
+# =========================================================
+
+@app.route(
+    "/medical_records",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Doctor"
+)
+def medical_records():
 
     connection = get_connection()
 
-    # Get patients for dropdown
     patients_list = connection.execute("""
-        SELECT id, patient_number, first_name, last_name
+        SELECT
+            id,
+            patient_number,
+            first_name,
+            last_name
         FROM patients
         ORDER BY first_name
     """).fetchall()
 
-    # Get doctors for dropdown
     doctors_list = connection.execute("""
-        SELECT id, doctor_number, first_name, last_name, specialization
+        SELECT
+            id,
+            doctor_number,
+            first_name,
+            last_name,
+            specialization
         FROM doctors
         ORDER BY first_name
     """).fetchall()
 
-    # Register medical record
     if request.method == "POST":
 
-        record_number = request.form["record_number"]
-        patient_id = request.form["patient_id"]
-        doctor_id = request.form["doctor_id"]
-        visit_date = request.form["visit_date"]
-        symptoms = request.form["symptoms"]
-        diagnosis = request.form["diagnosis"]
-        treatment = request.form["treatment"]
-        prescription = request.form["prescription"]
-        follow_up_date = request.form["follow_up_date"]
+        record_number = request.form.get(
+            "record_number",
+            ""
+        ).strip()
+
+        patient_id = request.form.get(
+            "patient_id",
+            ""
+        )
+
+        doctor_id = request.form.get(
+            "doctor_id",
+            ""
+        )
+
+        visit_date = request.form.get(
+            "visit_date",
+            ""
+        )
+
+        symptoms = request.form.get(
+            "symptoms",
+            ""
+        ).strip()
+
+        diagnosis = request.form.get(
+            "diagnosis",
+            ""
+        ).strip()
+
+        treatment = request.form.get(
+            "treatment",
+            ""
+        ).strip()
+
+        prescription = request.form.get(
+            "prescription",
+            ""
+        ).strip()
+
+        follow_up_date = request.form.get(
+            "follow_up_date",
+            ""
+        )
+
+        if not record_number or not patient_id or not doctor_id:
+
+            connection.close()
+
+            return "Required medical record fields are missing.", 400
 
         connection.execute("""
             INSERT INTO medical_records (
@@ -1209,12 +2052,17 @@ def medical_records():
         connection.commit()
         connection.close()
 
-        return redirect(url_for("medical_records"))
+        return redirect(
+            url_for("medical_records")
+        )
 
- # Search Medical Records
-    search = request.args.get("search", "").strip()
+    search = request.args.get(
+        "search",
+        ""
+    ).strip()
 
     if search:
+
         records_list = connection.execute("""
             SELECT
                 medical_records.*,
@@ -1231,12 +2079,12 @@ def medical_records():
             JOIN doctors
                 ON medical_records.doctor_id = doctors.id
             WHERE medical_records.record_number LIKE ?
-                OR patients.patient_number LIKE ?
-                OR patients.first_name LIKE ?
-                OR patients.last_name LIKE ?
-                OR doctors.first_name LIKE ?
-                OR doctors.last_name LIKE ?
-                OR medical_records.diagnosis LIKE ?
+               OR patients.patient_number LIKE ?
+               OR patients.first_name LIKE ?
+               OR patients.last_name LIKE ?
+               OR doctors.first_name LIKE ?
+               OR doctors.last_name LIKE ?
+               OR medical_records.diagnosis LIKE ?
             ORDER BY medical_records.visit_date DESC
         """, (
             f"%{search}%",
@@ -1249,6 +2097,7 @@ def medical_records():
         )).fetchall()
 
     else:
+
         records_list = connection.execute("""
             SELECT
                 medical_records.*,
@@ -1277,11 +2126,19 @@ def medical_records():
         search=search
     )
 
-@app.route("/medical-record/<int:record_id>")
-@role_required("Administrator", "Doctor")
+
+# =========================================================
+# VIEW MEDICAL RECORD
+# =========================================================
+
+@app.route(
+    "/medical-record/<int:record_id>"
+)
+@role_required(
+    "Administrator",
+    "Doctor"
+)
 def view_medical_record(record_id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
@@ -1306,68 +2163,28 @@ def view_medical_record(record_id):
     connection.close()
 
     if record is None:
+
         return "Medical record not found", 404
 
     return render_template(
         "view_medical_record.html",
         record=record
     )
-@app.route("/backup-restore", methods=["GET", "POST"])
-@role_required("Administrator")
-def backup_restore():
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
-    database_path = Path(__file__).parent / "database" / "hospital.db"
-    backup_folder = Path(__file__).parent / "database" / "backups"
+# =========================================================
+# EDIT MEDICAL RECORD
+# =========================================================
 
-    backup_folder.mkdir(exist_ok=True)
-
-    if request.method == "POST":
-
-        action = request.form.get("action")
-
-        # BACKUP DATABASE
-        if action == "backup":
-
-            backup_name = "hospital_backup.db"
-            backup_path = backup_folder / backup_name
-
-            shutil.copy2(database_path, backup_path)
-
-            return render_template(
-                "backup_restore.html",
-                message="Database backup created successfully.",
-                message_type="success"
-            )
-
-        # RESTORE DATABASE
-        elif action == "restore":
-
-            backup_path = backup_folder / "hospital_backup.db"
-
-            if not backup_path.exists():
-                return render_template(
-                    "backup_restore.html",
-                    message="No database backup was found.",
-                    message_type="error"
-                )
-
-            shutil.copy2(backup_path, database_path)
-
-            return render_template(
-                "backup_restore.html",
-                message="Database restored successfully. Please restart the system.",
-                message_type="success"
-            )
-
-    return render_template("backup_restore.html")
-@app.route("/medical-records/<int:record_id>/edit", methods=["GET", "POST"])
+@app.route(
+    "/medical-records/<int:record_id>/edit",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Doctor"
+)
 def edit_medical_record(record_id):
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
@@ -1378,20 +2195,57 @@ def edit_medical_record(record_id):
     """, (record_id,)).fetchone()
 
     if record is None:
+
         connection.close()
+
         return "Medical record not found", 404
 
     if request.method == "POST":
 
-        record_number = request.form["record_number"]
-        patient_id = request.form["patient_id"]
-        doctor_id = request.form["doctor_id"]
-        visit_date = request.form["visit_date"]
-        symptoms = request.form["symptoms"]
-        diagnosis = request.form["diagnosis"]
-        treatment = request.form["treatment"]
-        prescription = request.form["prescription"]
-        follow_up_date = request.form["follow_up_date"]
+        record_number = request.form.get(
+            "record_number",
+            ""
+        ).strip()
+
+        patient_id = request.form.get(
+            "patient_id",
+            ""
+        )
+
+        doctor_id = request.form.get(
+            "doctor_id",
+            ""
+        )
+
+        visit_date = request.form.get(
+            "visit_date",
+            ""
+        )
+
+        symptoms = request.form.get(
+            "symptoms",
+            ""
+        ).strip()
+
+        diagnosis = request.form.get(
+            "diagnosis",
+            ""
+        ).strip()
+
+        treatment = request.form.get(
+            "treatment",
+            ""
+        ).strip()
+
+        prescription = request.form.get(
+            "prescription",
+            ""
+        ).strip()
+
+        follow_up_date = request.form.get(
+            "follow_up_date",
+            ""
+        )
 
         connection.execute("""
             UPDATE medical_records
@@ -1429,13 +2283,22 @@ def edit_medical_record(record_id):
         )
 
     patients_list = connection.execute("""
-        SELECT id, patient_number, first_name, last_name
+        SELECT
+            id,
+            patient_number,
+            first_name,
+            last_name
         FROM patients
         ORDER BY first_name
     """).fetchall()
 
     doctors_list = connection.execute("""
-        SELECT id, doctor_number, first_name, last_name, specialization
+        SELECT
+            id,
+            doctor_number,
+            first_name,
+            last_name,
+            specialization
         FROM doctors
         ORDER BY first_name
     """).fetchall()
@@ -1448,11 +2311,18 @@ def edit_medical_record(record_id):
         patients=patients_list,
         doctors=doctors_list
     )
-@app.route("/medical-records/<int:record_id>/delete", methods=["POST"])
-def delete_medical_record(record_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# DELETE MEDICAL RECORD
+# =========================================================
+
+@app.route(
+    "/medical-records/<int:record_id>/delete",
+    methods=["POST"]
+)
+@role_required("Administrator")
+def delete_medical_record(record_id):
 
     connection = get_connection()
 
@@ -1464,29 +2334,114 @@ def delete_medical_record(record_id):
     connection.commit()
     connection.close()
 
-    return redirect(url_for("medical_records"))
-@app.route("/medicines", methods=["GET", "POST"])
-@role_required("Administrator", "Pharmacist")
+    return redirect(
+        url_for("medical_records")
+    )
+
+
+# =========================================================
+# MEDICINES
+# =========================================================
+
+@app.route(
+    "/medicines",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Pharmacist"
+)
 def medicines():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
-    # Register medicine
     if request.method == "POST":
 
-        medicine_number = request.form["medicine_number"]
-        medicine_name = request.form["medicine_name"]
-        category = request.form["category"]
-        quantity = request.form["quantity"]
-        unit_price = request.form["unit_price"]
-        expiry_date = request.form["expiry_date"]
-        supplier = request.form["supplier"]
-        description = request.form["description"]
+        medicine_number = request.form.get(
+            "medicine_number",
+            ""
+        ).strip()
 
-        connection.execute("""
-            INSERT INTO medicines (
+        medicine_name = request.form.get(
+            "medicine_name",
+            ""
+        ).strip()
+
+        category = request.form.get(
+            "category",
+            ""
+        ).strip()
+
+        quantity_text = request.form.get(
+            "quantity",
+            ""
+        )
+
+        unit_price_text = request.form.get(
+            "unit_price",
+            ""
+        )
+
+        expiry_date = request.form.get(
+            "expiry_date",
+            ""
+        )
+
+        supplier = request.form.get(
+            "supplier",
+            ""
+        ).strip()
+
+        description = request.form.get(
+            "description",
+            ""
+        ).strip()
+
+        try:
+
+            quantity = int(quantity_text)
+            unit_price = float(unit_price_text)
+
+        except (ValueError, TypeError):
+
+            connection.close()
+
+            return "Invalid quantity or unit price.", 400
+
+        if quantity < 0:
+
+            connection.close()
+
+            return "Quantity cannot be negative.", 400
+
+        if unit_price < 0:
+
+            connection.close()
+
+            return "Unit price cannot be negative.", 400
+
+        if not medicine_number or not medicine_name:
+
+            connection.close()
+
+            return "Medicine number and name are required.", 400
+
+        try:
+
+            connection.execute("""
+                INSERT INTO medicines (
+                    medicine_number,
+                    medicine_name,
+                    category,
+                    quantity,
+                    unit_price,
+                    expiry_date,
+                    supplier,
+                    description,
+                    registration_date
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (
                 medicine_number,
                 medicine_name,
                 category,
@@ -1494,25 +2449,21 @@ def medicines():
                 unit_price,
                 expiry_date,
                 supplier,
-                description,
-                registration_date
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (
-            medicine_number,
-            medicine_name,
-            category,
-            quantity,
-            unit_price,
-            expiry_date,
-            supplier,
-            description
-        ))
+                description
+            ))
 
-        connection.commit()
+            connection.commit()
 
-    # Search medicines
-    search = request.args.get("search", "").strip()
+        except Exception:
+
+            connection.close()
+
+            return "Unable to register medicine. Check that the medicine number is unique.", 400
+
+    search = request.args.get(
+        "search",
+        ""
+    ).strip()
 
     if search:
 
@@ -1539,24 +2490,24 @@ def medicines():
             ORDER BY id DESC
         """).fetchall()
 
-    # Stock and expiry status
     medicines_with_status = []
 
     total_medicines = 0
     low_stock_count = 0
     out_of_stock_count = 0
 
-    from datetime import date, datetime, timedelta
+    from datetime import date
 
     today = date.today()
 
     for medicine in medicines_list:
 
-        quantity = int(medicine["quantity"])
+        quantity = int(
+            medicine["quantity"]
+        )
 
         total_medicines += 1
 
-        # Stock status
         if quantity == 0:
 
             stock_status = "Out of Stock"
@@ -1571,7 +2522,6 @@ def medicines():
 
             stock_status = "In Stock"
 
-        # Expiry status
         expiry_status = "No Expiry Date"
 
         if medicine["expiry_date"]:
@@ -1583,7 +2533,9 @@ def medicines():
                     "%Y-%m-%d"
                 ).date()
 
-                days_remaining = (expiry - today).days
+                days_remaining = (
+                    expiry - today
+                ).days
 
                 if days_remaining < 0:
 
@@ -1617,11 +2569,21 @@ def medicines():
         low_stock_count=low_stock_count,
         out_of_stock_count=out_of_stock_count
     )
-@app.route("/medicines/<int:medicine_id>/edit", methods=["GET", "POST"])
-def edit_medicine(medicine_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+
+# =========================================================
+# EDIT MEDICINE
+# =========================================================
+
+@app.route(
+    "/medicines/<int:medicine_id>/edit",
+    methods=["GET", "POST"]
+)
+@role_required(
+    "Administrator",
+    "Pharmacist"
+)
+def edit_medicine(medicine_id):
 
     connection = get_connection()
 
@@ -1632,19 +2594,69 @@ def edit_medicine(medicine_id):
     """, (medicine_id,)).fetchone()
 
     if medicine is None:
+
         connection.close()
+
         return "Medicine not found", 404
 
     if request.method == "POST":
 
-        medicine_number = request.form["medicine_number"]
-        medicine_name = request.form["medicine_name"]
-        category = request.form["category"]
-        quantity = request.form["quantity"]
-        unit_price = request.form["unit_price"]
-        expiry_date = request.form["expiry_date"]
-        supplier = request.form["supplier"]
-        description = request.form["description"]
+        medicine_number = request.form.get(
+            "medicine_number",
+            ""
+        ).strip()
+
+        medicine_name = request.form.get(
+            "medicine_name",
+            ""
+        ).strip()
+
+        category = request.form.get(
+            "category",
+            ""
+        ).strip()
+
+        quantity_text = request.form.get(
+            "quantity",
+            ""
+        )
+
+        unit_price_text = request.form.get(
+            "unit_price",
+            ""
+        )
+
+        expiry_date = request.form.get(
+            "expiry_date",
+            ""
+        )
+
+        supplier = request.form.get(
+            "supplier",
+            ""
+        ).strip()
+
+        description = request.form.get(
+            "description",
+            ""
+        ).strip()
+
+        try:
+
+            quantity = int(quantity_text)
+            unit_price = float(unit_price_text)
+
+        except (ValueError, TypeError):
+
+            connection.close()
+
+            return "Invalid quantity or unit price.", 400
+
+        if quantity < 0 or unit_price < 0:
+
+            connection.close()
+
+            return "Quantity and price cannot be negative.", 400
 
         connection.execute("""
             UPDATE medicines
@@ -1672,7 +2684,9 @@ def edit_medicine(medicine_id):
         connection.commit()
         connection.close()
 
-        return redirect(url_for("medicines"))
+        return redirect(
+            url_for("medicines")
+        )
 
     connection.close()
 
@@ -1682,174 +2696,217 @@ def edit_medicine(medicine_id):
     )
 
 
-@app.route("/medicines/<int:medicine_id>/delete", methods=["POST"])
+# =========================================================
+# DELETE MEDICINE
+# =========================================================
+
+@app.route(
+    "/medicines/<int:medicine_id>/delete",
+    methods=["POST"]
+)
+@role_required("Administrator")
 def delete_medicine(medicine_id):
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
     connection = get_connection()
 
-    connection.execute("""
-        DELETE FROM medicines
+    medicine = connection.execute(
+        """
+        SELECT id
+        FROM medicines
         WHERE id = ?
-    """, (medicine_id,))
-
-    connection.commit()
-    connection.close()
-
-    return redirect(url_for("medicines"))
-
-
-
-@app.route("/doctors/<int:doctor_id>/edit", methods=["GET", "POST"])
-def edit_doctor(doctor_id):
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    connection = get_connection()
-
-    doctor = connection.execute(
-        "SELECT * FROM doctors WHERE id = ?",
-        (doctor_id,)
+        """,
+        (medicine_id,)
     ).fetchone()
 
-    if doctor is None:
+    if medicine is None:
+
         connection.close()
-        return "Doctor not found", 404
+
+        return "Medicine not found", 404
+
+    try:
+
+        connection.execute(
+            """
+            DELETE FROM medicines
+            WHERE id = ?
+            """,
+            (medicine_id,)
+        )
+
+        connection.commit()
+
+    except Exception:
+
+        connection.close()
+
+        return (
+            "Medicine cannot be deleted because sales records exist.",
+            400
+        )
+
+    connection.close()
+
+    return redirect(
+        url_for("medicines")
+    )
+
+
+# =========================================================
+# BACKUP & RESTORE
+# =========================================================
+
+@app.route(
+    "/backup-restore",
+    methods=["GET", "POST"]
+)
+@role_required("Administrator")
+def backup_restore():
+
+    database_path = (
+        Path(__file__).parent /
+        "database" /
+        "hospital.db"
+    )
+
+    backup_folder = (
+        Path(__file__).parent /
+        "database" /
+        "backups"
+    )
+
+    backup_folder.mkdir(
+        exist_ok=True
+    )
 
     if request.method == "POST":
 
-        doctor_number = request.form["doctor_number"]
-        first_name = request.form["first_name"]
-        last_name = request.form["last_name"]
-        specialization = request.form["specialization"]
-        phone = request.form["phone"]
-        email = request.form["email"]
-        department = request.form["department"]
+        action = request.form.get(
+            "action"
+        )
 
-        connection.execute("""
-            UPDATE doctors
-            SET doctor_number = ?,
-                first_name = ?,
-                last_name = ?,
-                specialization = ?,
-                phone = ?,
-                email = ?,
-                department = ?
-            WHERE id = ?
-        """, (
-            doctor_number,
-            first_name,
-            last_name,
-            specialization,
-            phone,
-            email,
-            department,
-            doctor_id
-        ))
+        if action == "backup":
 
-        connection.commit()
-        connection.close()
+            backup_name = "hospital_backup.db"
 
-        return redirect(url_for("view_doctor", doctor_id=doctor_id))
+            backup_path = (
+                backup_folder /
+                backup_name
+            )
 
-    connection.close()
+            shutil.copy2(
+                database_path,
+                backup_path
+            )
+
+            return render_template(
+                "backup_restore.html",
+                message="Database backup created successfully.",
+                message_type="success"
+            )
+
+        elif action == "restore":
+
+            backup_path = (
+                backup_folder /
+                "hospital_backup.db"
+            )
+
+            if not backup_path.exists():
+
+                return render_template(
+                    "backup_restore.html",
+                    message="No database backup was found.",
+                    message_type="error"
+                )
+
+            shutil.copy2(
+                backup_path,
+                database_path
+            )
+
+            return render_template(
+                "backup_restore.html",
+                message="Database restored successfully. Please restart the system.",
+                message_type="success"
+            )
+
+        return render_template(
+            "backup_restore.html",
+            message="Invalid backup operation.",
+            message_type="error"
+        )
 
     return render_template(
-        "edit_doctor.html",
-        doctor=doctor
-    )
-@app.route("/doctors/<int:doctor_id>/delete", methods=["POST"])
-def delete_doctor(doctor_id):
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    connection = get_connection()
-
-    connection.execute(
-        "DELETE FROM doctors WHERE id = ?",
-        (doctor_id,)
+        "backup_restore.html"
     )
 
-    connection.commit()
-    connection.close()
 
-    return redirect(url_for("doctors"))
+# =========================================================
+# REPORTS
+# =========================================================
 
 @app.route("/reports")
-@role_required("Administrator", "Doctor")
+@role_required(
+    "Administrator",
+    "Doctor"
+)
 def reports():
-
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
     connection = get_connection()
 
-    # Total patients
     total_patients = connection.execute(
         "SELECT COUNT(*) FROM patients"
     ).fetchone()[0]
 
-    # Total doctors
     total_doctors = connection.execute(
         "SELECT COUNT(*) FROM doctors"
     ).fetchone()[0]
 
-    # Today's appointments
     today_appointments = connection.execute("""
         SELECT COUNT(*)
         FROM appointments
         WHERE appointment_date = date('now')
     """).fetchone()[0]
 
-    # Total appointments
     total_appointments = connection.execute("""
         SELECT COUNT(*)
         FROM appointments
     """).fetchone()[0]
 
-    # Today's pharmacy sales
     today_sales = connection.execute("""
         SELECT COALESCE(SUM(total_amount), 0)
         FROM pharmacy_sales
         WHERE date(sale_date) = date('now')
     """).fetchone()[0]
 
-    # Total pharmacy sales
     total_sales = connection.execute("""
         SELECT COALESCE(SUM(total_amount), 0)
         FROM pharmacy_sales
     """).fetchone()[0]
 
-    # Total laboratory tests
     total_laboratory_tests = connection.execute("""
         SELECT COUNT(*)
         FROM laboratory_tests
     """).fetchone()[0]
 
-    # Completed laboratory tests
     completed_tests = connection.execute("""
         SELECT COUNT(*)
         FROM laboratory_tests
         WHERE LOWER(status) = 'completed'
     """).fetchone()[0]
 
-    # Total medicines
     total_medicines = connection.execute(
         "SELECT COUNT(*) FROM medicines"
     ).fetchone()[0]
 
-    # Low-stock medicines
     low_stock = connection.execute("""
         SELECT COUNT(*)
         FROM medicines
-        WHERE quantity > 0 AND quantity <= 10
+        WHERE quantity > 0
+        AND quantity <= 10
     """).fetchone()[0]
 
-    # Out-of-stock medicines
     out_of_stock = connection.execute("""
         SELECT COUNT(*)
         FROM medicines
@@ -1872,5 +2929,16 @@ def reports():
         low_stock=low_stock,
         out_of_stock=out_of_stock
     )
+
+
+# =========================================================
+# APPLICATION START
+# =========================================================
+
 if __name__ == "__main__":
-    app.run(debug=True)
+
+    app.run(
+        debug=False,
+        host="127.0.0.1",
+        port=5000
+    )

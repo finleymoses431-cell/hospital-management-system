@@ -1,669 +1,433 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% extends "base.html" %}
 
-    <title>Doctor Management - Hospital Management System</title>
+{% block title %}
+Doctor Management - Hospital Management System
+{% endblock %}
 
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: Arial, sans-serif;
-        }
+{% block page_title %}
+Doctor Management
+{% endblock %}
 
-        body {
-            background: #f4f7f9;
-            color: #1f2937;
-        }
+{% block page_subtitle %}
+Register and manage doctors
+{% endblock %}
 
-        /* HEADER */
-        .header {
-            background: #164e63;
-            color: white;
-            padding: 18px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+{% block content %}
 
-        .header h1 {
-            font-size: 24px;
-        }
+<!-- PAGE HEADER -->
+<div class="page-header">
 
-        .back-btn {
-            background: #0f766e;
-            color: white;
-            text-decoration: none;
-            padding: 10px 16px;
-            border-radius: 6px;
-            font-weight: bold;
-        }
-
-        .back-btn:hover {
-            background: #115e59;
-        }
-
-        /* CONTAINER */
-        .container {
-            max-width: 1400px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
-
-        /* INTRO */
-        .intro {
-            margin-bottom: 25px;
-        }
-
-        .intro h2 {
-            color: #164e63;
-            margin-bottom: 6px;
-        }
-
-        .intro p {
-            color: #6b7280;
-        }
-
-        /* FORM CARD */
-        .form-card {
-            background: white;
-            border-radius: 12px;
-            padding: 28px;
-            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.08);
-            margin-bottom: 30px;
-        }
-
-        .section-title {
-            color: #164e63;
-            font-size: 20px;
-            margin-bottom: 5px;
-        }
-
-        .section-description {
-            color: #6b7280;
-            font-size: 14px;
-            margin-bottom: 25px;
-        }
-
-        /* FORM */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .required {
-            color: #dc2626;
-        }
-
-        label {
-            font-size: 14px;
-            font-weight: bold;
-            color: #374151;
-            margin-bottom: 7px;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px 13px;
-            border: 1px solid #d1d5db;
-            border-radius: 7px;
-            font-size: 14px;
-            outline: none;
-            transition: 0.2s;
-        }
-
-        input:focus {
-            border-color: #0f766e;
-            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.10);
-        }
-
-        /* REGISTER BUTTON */
-        .form-actions {
-            margin-top: 25px;
-        }
-
-        .register-btn {
-            border: none;
-            background: #0f766e;
-            color: white;
-            padding: 12px 22px;
-            border-radius: 7px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .register-btn:hover {
-            background: #115e59;
-        }
-
-        /* DOCTORS CARD */
-        .doctors-card {
-            background: white;
-            border-radius: 12px;
-            padding: 28px;
-            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.08);
-        }
-
-        /* SEARCH */
-        .search-section {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 25px;
-        }
-
-        .search-section input {
-            max-width: 500px;
-        }
-
-        .search-btn {
-            border: none;
-            background: #164e63;
-            color: white;
-            padding: 11px 20px;
-            border-radius: 7px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .search-btn:hover {
-            background: #0f3f50;
-        }
-
-        .clear-btn {
-            text-decoration: none;
-            background: #e5e7eb;
-            color: #374151;
-            padding: 11px 18px;
-            border-radius: 7px;
-            font-weight: bold;
-        }
-
-        .clear-btn:hover {
-            background: #d1d5db;
-        }
-
-        /* TABLE */
-        .table-container {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 1000px;
-        }
-
-        th {
-            background: #164e63;
-            color: white;
-            padding: 13px;
-            text-align: left;
-            font-size: 13px;
-        }
-
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #e5e7eb;
-            font-size: 13px;
-        }
-
-        tr:hover {
-            background: #f8fafc;
-        }
-
-        /* ACTIONS */
-        .action-buttons {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-
-        .edit-btn {
-            text-decoration: none;
-            background: #fef3c7;
-            color: #92400e;
-            padding: 6px 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .delete-btn {
-            border: none;
-            background: #fee2e2;
-            color: #b91c1c;
-            padding: 6px 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .edit-btn:hover {
-            background: #fde68a;
-        }
-
-        .delete-btn:hover {
-            background: #fecaca;
-        }
-
-        /* EMPTY */
-        .empty {
-            text-align: center;
-            padding: 30px;
-            color: #6b7280;
-        }
-
-        /* FOOTER */
-        .footer {
-            text-align: center;
-            color: #888;
-            padding: 25px;
-            font-size: 13px;
-        }
-
-        /* MOBILE */
-        @media (max-width: 800px) {
-
-            .header {
-                padding: 15px;
-            }
-
-            .header h1 {
-                font-size: 19px;
-            }
-
-            .container {
-                padding: 0 12px;
-            }
-
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .search-section {
-                flex-direction: column;
-            }
-
-            .search-section input {
-                max-width: 100%;
-            }
-
-            .back-btn {
-                padding: 8px 10px;
-                font-size: 12px;
-            }
-        }
-    </style>
-</head>
-
-<body>
-
-<!-- HEADER -->
-
-<header class="header">
-
-    <h1>🏥 Doctor Management</h1>
-
-    <a href="{{ url_for('dashboard') }}" class="back-btn">
-        ← Dashboard
-    </a>
-
-</header>
-
-
-<div class="container">
-
-    <!-- INTRO -->
-
-    <div class="intro">
-
+    <div>
         <h2>Doctor Registration</h2>
 
         <p>
-            Register and manage doctors working within the hospital.
+            Register new doctors and manage existing doctor records.
         </p>
-
     </div>
 
+</div>
 
-    <!-- REGISTRATION FORM -->
 
-    <div class="form-card">
+<!-- REGISTRATION FORM -->
+<div class="panel">
 
-        <h3 class="section-title">
-            👨‍⚕️ Register New Doctor
-        </h3>
+    <div class="panel-header">
 
-        <p class="section-description">
-            Enter the professional and contact information of the doctor.
-        </p>
+        <div>
 
+            <h3>
+                <i class="fa-solid fa-user-doctor"></i>
+                Register New Doctor
+            </h3>
 
-        <form method="POST">
-
-            <div class="form-grid">
-
-                <!-- Doctor Number -->
-
-                <div class="form-group">
-
-                    <label>
-                        Doctor Number <span class="required">*</span>
-                    </label>
-
-                    <input
-                        type="text"
-                        name="doctor_number"
-                        placeholder="e.g. DOC-001"
-                        required
-                    >
-
-                </div>
-
-
-                <!-- First Name -->
-
-                <div class="form-group">
-
-                    <label>
-                        First Name <span class="required">*</span>
-                    </label>
-
-                    <input
-                        type="text"
-                        name="first_name"
-                        placeholder="Enter first name"
-                        required
-                    >
-
-                </div>
-
-
-                <!-- Last Name -->
-
-                <div class="form-group">
-
-                    <label>
-                        Last Name <span class="required">*</span>
-                    </label>
-
-                    <input
-                        type="text"
-                        name="last_name"
-                        placeholder="Enter last name"
-                        required
-                    >
-
-                </div>
-
-
-                <!-- Specialization -->
-
-                <div class="form-group">
-
-                    <label>
-                        Specialization <span class="required">*</span>
-                    </label>
-
-                    <input
-                        type="text"
-                        name="specialization"
-                        placeholder="e.g. General Physician"
-                        required
-                    >
-
-                </div>
-
-
-                <!-- Phone -->
-
-                <div class="form-group">
-
-                    <label>
-                        Phone Number <span class="required">*</span>
-                    </label>
-
-                    <input
-                        type="text"
-                        name="phone"
-                        placeholder="e.g. 0712345678"
-                        required
-                    >
-
-                </div>
-
-
-                <!-- Email -->
-
-                <div class="form-group">
-
-                    <label>
-                        Email Address
-                    </label>
-
-                    <input
-                        type="email"
-                        name="email"
-                        placeholder="doctor@example.com"
-                    >
-
-                </div>
-
-
-                <!-- Department -->
-
-                <div class="form-group">
-
-                    <label>
-                        Department
-                    </label>
-
-                    <input
-                        type="text"
-                        name="department"
-                        placeholder="e.g. Outpatient Department"
-                    >
-
-                </div>
-
-            </div>
-
-
-            <div class="form-actions">
-
-                <button type="submit" class="register-btn">
-                    + Register Doctor
-                </button>
-
-            </div>
-
-        </form>
-
-    </div>
-
-
-    <!-- REGISTERED DOCTORS -->
-
-    <div class="doctors-card">
-
-        <h3 class="section-title">
-            👨‍⚕️ Registered Doctors
-        </h3>
-
-        <p class="section-description">
-            Search and manage doctors currently registered in the system.
-        </p>
-
-
-        <!-- SEARCH -->
-
-        <form
-            method="GET"
-            action="{{ url_for('doctors') }}"
-            class="search-section"
-        >
-
-            <input
-                type="text"
-                name="search"
-                placeholder="Search by doctor number, name, specialization or phone"
-                value="{{ search }}"
-            >
-
-            <button type="submit" class="search-btn">
-                🔍 Search
-            </button>
-
-            <a
-                href="{{ url_for('doctors') }}"
-                class="clear-btn"
-            >
-                Clear
-            </a>
-
-        </form>
-
-
-        <!-- TABLE -->
-
-        <div class="table-container">
-
-            <table>
-
-                <thead>
-
-                    <tr>
-
-                        <th>Doctor Number</th>
-                        <th>First Name</th>
-                        <th>Last Name</th>
-                        <th>Specialization</th>
-                        <th>Phone</th>
-                        <th>Email</th>
-                        <th>Department</th>
-                        <th>Registration Date</th>
-                        <th>Action</th>
-
-                    </tr>
-
-                </thead>
-
-
-                <tbody>
-
-                    {% for doctor in doctors %}
-
-                    <tr>
-
-                        <td>
-                            <strong>
-                                {{ doctor["doctor_number"] }}
-                            </strong>
-                        </td>
-
-                        <td>
-                            {{ doctor["first_name"] }}
-                        </td>
-
-                        <td>
-                            {{ doctor["last_name"] }}
-                        </td>
-
-                        <td>
-                            {{ doctor["specialization"] }}
-                        </td>
-
-                        <td>
-                            {{ doctor["phone"] }}
-                        </td>
-
-                        <td>
-                            {{ doctor["email"] }}
-                        </td>
-
-                        <td>
-                            {{ doctor["department"] }}
-                        </td>
-
-                        <td>
-                            {{ doctor["registration_date"] }}
-                        </td>
-
-                        <td>
-
-                            <div class="action-buttons">
-
-                                <a
-                                    href="{{ url_for('edit_doctor', doctor_id=doctor['id']) }}"
-                                    class="edit-btn"
-                                >
-                                    Edit
-                                </a>
-
-
-                                <form
-                                    method="POST"
-                                    action="{{ url_for('delete_doctor', doctor_id=doctor['id']) }}"
-                                    style="display:inline;"
-                                    onsubmit="return confirm('Are you sure you want to delete this doctor?');"
-                                >
-
-                                    <button
-                                        type="submit"
-                                        class="delete-btn"
-                                    >
-                                        Delete
-                                    </button>
-
-                                </form>
-
-                            </div>
-
-                        </td>
-
-                    </tr>
-
-                    {% else %}
-
-                    <tr>
-
-                        <td colspan="9" class="empty">
-                            No doctors found.
-                        </td>
-
-                    </tr>
-
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
+            <p class="section-description">
+                Enter the professional and contact information of the doctor.
+            </p>
 
         </div>
 
     </div>
 
+
+    <form method="POST">
+
+        <div class="form-grid">
+
+            <!-- DOCTOR NUMBER -->
+            <div class="form-group">
+
+                <label>
+                    Doctor Number <span class="required">*</span>
+                </label>
+
+                <input
+                    type="text"
+                    name="doctor_number"
+                    placeholder="e.g. DOC-001"
+                    required
+                >
+
+            </div>
+
+
+            <!-- FIRST NAME -->
+            <div class="form-group">
+
+                <label>
+                    First Name <span class="required">*</span>
+                </label>
+
+                <input
+                    type="text"
+                    name="first_name"
+                    placeholder="Enter first name"
+                    required
+                >
+
+            </div>
+
+
+            <!-- LAST NAME -->
+            <div class="form-group">
+
+                <label>
+                    Last Name <span class="required">*</span>
+                </label>
+
+                <input
+                    type="text"
+                    name="last_name"
+                    placeholder="Enter last name"
+                    required
+                >
+
+            </div>
+
+
+            <!-- SPECIALIZATION -->
+            <div class="form-group">
+
+                <label>
+                    Specialization <span class="required">*</span>
+                </label>
+
+                <input
+                    type="text"
+                    name="specialization"
+                    placeholder="e.g. General Physician"
+                    required
+                >
+
+            </div>
+
+
+            <!-- PHONE -->
+            <div class="form-group">
+
+                <label>
+                    Phone Number <span class="required">*</span>
+                </label>
+
+                <input
+                    type="text"
+                    name="phone"
+                    placeholder="e.g. 0712345678"
+                    required
+                >
+
+            </div>
+
+
+            <!-- EMAIL -->
+            <div class="form-group">
+
+                <label>
+                    Email Address
+                </label>
+
+                <input
+                    type="email"
+                    name="email"
+                    placeholder="doctor@example.com"
+                >
+
+            </div>
+
+
+            <!-- DEPARTMENT -->
+            <div class="form-group">
+
+                <label>
+                    Department
+                </label>
+
+                <input
+                    type="text"
+                    name="department"
+                    placeholder="e.g. Outpatient Department"
+                >
+
+            </div>
+
+        </div>
+
+
+        <!-- FORM ACTIONS -->
+        <div class="form-actions">
+
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+
+                <i class="fa-solid fa-user-doctor"></i>
+
+                Register Doctor
+
+            </button>
+
+        </div>
+
+    </form>
+
 </div>
 
 
-<!-- FOOTER -->
+<!-- SPACE -->
+<div style="height: 25px;"></div>
 
-<div class="footer">
 
-    Hospital Management System © 2026
+<!-- REGISTERED DOCTORS -->
+<div class="panel">
+
+    <div class="panel-header">
+
+        <div>
+
+            <h3>
+                <i class="fa-solid fa-users"></i>
+                Registered Doctors
+            </h3>
+
+            <p class="section-description">
+                Search and manage doctors currently registered in the system.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <!-- SEARCH -->
+    <form
+        method="GET"
+        action="{{ url_for('doctors') }}"
+        class="search-section"
+    >
+
+        <input
+            type="text"
+            name="search"
+            placeholder="Search by doctor number, name, specialization or phone"
+            value="{{ search }}"
+        >
+
+        <button
+            type="submit"
+            class="btn btn-primary"
+        >
+
+            <i class="fa-solid fa-magnifying-glass"></i>
+
+            Search
+
+        </button>
+
+
+        <a
+            href="{{ url_for('doctors') }}"
+            class="btn btn-secondary"
+        >
+
+            <i class="fa-solid fa-xmark"></i>
+
+            Clear
+
+        </a>
+
+    </form>
+
+
+    <!-- DOCTORS TABLE -->
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>Doctor Number</th>
+
+                    <th>First Name</th>
+
+                    <th>Last Name</th>
+
+                    <th>Specialization</th>
+
+                    <th>Phone</th>
+
+                    <th>Email</th>
+
+                    <th>Department</th>
+
+                    <th>Registration Date</th>
+
+                    <th>Action</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for doctor in doctors %}
+
+                <tr>
+
+                    <!-- DOCTOR NUMBER -->
+                    <td>
+
+                        <strong>
+                            {{ doctor["doctor_number"] }}
+                        </strong>
+
+                    </td>
+
+
+                    <!-- FIRST NAME -->
+                    <td>
+                        {{ doctor["first_name"] }}
+                    </td>
+
+
+                    <!-- LAST NAME -->
+                    <td>
+                        {{ doctor["last_name"] }}
+                    </td>
+
+
+                    <!-- SPECIALIZATION -->
+                    <td>
+
+                        <span class="badge badge-info">
+                            {{ doctor["specialization"] }}
+                        </span>
+
+                    </td>
+
+
+                    <!-- PHONE -->
+                    <td>
+                        {{ doctor["phone"] }}
+                    </td>
+
+
+                    <!-- EMAIL -->
+                    <td>
+                        {{ doctor["email"] or "-" }}
+                    </td>
+
+
+                    <!-- DEPARTMENT -->
+                    <td>
+                        {{ doctor["department"] or "-" }}
+                    </td>
+
+
+                    <!-- REGISTRATION DATE -->
+                    <td>
+                        {{ doctor["registration_date"] }}
+                    </td>
+
+
+                    <!-- ACTIONS -->
+                    <td>
+
+                        <div class="action-buttons">
+
+                            <!-- EDIT -->
+                            <a
+                                href="{{ url_for('edit_doctor', doctor_id=doctor['id']) }}"
+                                class="edit-btn"
+                                title="Edit Doctor"
+                            >
+
+                                <i class="fa-solid fa-pen"></i>
+
+                                Edit
+
+                            </a>
+
+
+                            <!-- DELETE -->
+                            <form
+                                method="POST"
+                                action="{{ url_for('delete_doctor', doctor_id=doctor['id']) }}"
+                                style="display:inline;"
+                                onsubmit="return confirm('Are you sure you want to delete this doctor?');"
+                            >
+
+                                <button
+                                    type="submit"
+                                    class="delete-btn"
+                                    title="Delete Doctor"
+                                >
+
+                                    <i class="fa-solid fa-trash"></i>
+
+                                    Delete
+
+                                </button>
+
+                            </form>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+
+
+                {% else %}
+
+                <!-- NO DOCTORS -->
+                <tr>
+
+                    <td
+                        colspan="9"
+                        class="empty"
+                    >
+
+                        <i class="fa-solid fa-user-doctor"></i>
+
+                        <p>
+                            No doctors found.
+                        </p>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
 
 </div>
 
-</body>
-</html>
+{% endblock %}
