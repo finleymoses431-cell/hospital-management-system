@@ -458,7 +458,7 @@ def patients():
 
         connection.close()
 
-        return redirect(url_for("patients"))
+        return "Patient registered successfully!"
 
     search = request.args.get(
         "search",
