@@ -35,7 +35,6 @@ def create_tables():
     connection = get_connection()
     cursor = connection.cursor()
 
-
     # =====================================================
     # USERS
     # =====================================================
@@ -53,7 +52,6 @@ def create_tables():
 
         )
     """)
-
 
     # =====================================================
     # PATIENTS
@@ -87,7 +85,6 @@ def create_tables():
         )
     """)
 
-
     # =====================================================
     # DOCTORS
     # =====================================================
@@ -115,7 +112,6 @@ def create_tables():
 
         )
     """)
-
 
     # =====================================================
     # APPOINTMENTS
@@ -150,7 +146,6 @@ def create_tables():
 
         )
     """)
-
 
     # =====================================================
     # MEDICAL RECORDS
@@ -191,7 +186,6 @@ def create_tables():
         )
     """)
 
-
     # =====================================================
     # MEDICINES
     # =====================================================
@@ -221,7 +215,6 @@ def create_tables():
 
         )
     """)
-
 
     # =====================================================
     # PHARMACY SALES
@@ -256,7 +249,6 @@ def create_tables():
         )
     """)
 
-
     # =====================================================
     # BILLS
     # =====================================================
@@ -285,7 +277,6 @@ def create_tables():
 
         )
     """)
-
 
     # =====================================================
     # LABORATORY TESTS
@@ -325,13 +316,11 @@ def create_tables():
         )
     """)
 
-
     # =====================================================
     # SAVE CHANGES
     # =====================================================
 
     connection.commit()
-
     connection.close()
 
 
@@ -344,16 +333,13 @@ def create_admin():
     connection = get_connection()
     cursor = connection.cursor()
 
-
     # Check whether administrator already exists
-
     cursor.execute(
         "SELECT id FROM users WHERE username = ?",
         ("admin",)
     )
 
     existing_admin = cursor.fetchone()
-
 
     if existing_admin is None:
 
@@ -376,33 +362,33 @@ def create_admin():
 
         connection.commit()
 
-        print(
-            "Administrator account created successfully."
-        )
-
+        print("Administrator account created successfully.")
         print("Username: admin")
         print("Password: Admin@123")
 
     else:
 
-        print(
-            "Administrator account already exists."
-        )
-
+        print("Administrator account already exists.")
 
     connection.close()
 
 
 # =========================================================
-# RUN DATABASE SETUP
+# INITIALIZE DATABASE
+# =========================================================
+
+def initialize_database():
+
+    create_tables()
+    create_admin()
+
+
+# =========================================================
+# RUN DATABASE SETUP DIRECTLY
 # =========================================================
 
 if __name__ == "__main__":
 
-    create_tables()
+    initialize_database()
 
-    create_admin()
-
-    print(
-        "Hospital database setup completed."
-    )
+    print("Hospital database setup completed.")

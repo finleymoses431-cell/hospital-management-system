@@ -25,9 +25,8 @@ from dotenv import load_dotenv
 
 from database.database import (
     get_connection,
-    create_tables
+    initialize_database
 )
-
 
 # =========================================================
 # LOAD ENVIRONMENT VARIABLES
@@ -41,6 +40,8 @@ load_dotenv()
 # =========================================================
 
 app = Flask(__name__)
+
+initialize_database()
 
 
 # =========================================================
@@ -81,8 +82,7 @@ csrf = CSRFProtect(app)
 # DATABASE INITIALIZATION
 # =========================================================
 
-create_tables()
-
+initialize_database()
 
 # =========================================================
 # ROLE PROTECTION
