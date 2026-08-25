@@ -112,15 +112,21 @@
         <p class="subtitle">
             Secure Staff Login
         </p>
-{% if error %}
-    <p style="color: red; text-align: center; margin-bottom: 15px;">
-        {{ error }}
-    </p>
-{% endif %}
+
+        {% if error %}
+            <p style="color: red; text-align: center; margin-bottom: 15px;">
+                {{ error }}
+            </p>
+        {% endif %}
+
         <form method="POST">
+
+            <!-- CSRF Protection -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="form-group">
                 <label for="username">Username</label>
+
                 <input
                     type="text"
                     id="username"
@@ -132,6 +138,7 @@
 
             <div class="form-group">
                 <label for="password">Password</label>
+
                 <input
                     type="password"
                     id="password"
