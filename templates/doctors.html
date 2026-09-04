@@ -50,6 +50,8 @@ Register and manage doctors
 
 
     <form method="POST">
+        <input type="hidden" name="csrf_token"
+        value="{{ csrf_token() }}">
 
         <div class="form-grid">
 
@@ -378,7 +380,10 @@ Register and manage doctors
                                 style="display:inline;"
                                 onsubmit="return confirm('Are you sure you want to delete this doctor?');"
                             >
-
+                            <input
+                              type="submit"
+                              name="csrf_token"
+                              value="{{ csrf_token() }}">
                                 <button
                                     type="submit"
                                     class="delete-btn"

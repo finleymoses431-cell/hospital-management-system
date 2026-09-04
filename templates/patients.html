@@ -48,6 +48,8 @@ Register and manage patient records
 
 
     <form method="POST">
+        <input type="hidden" name="csrf_token"
+        value="{{ csrf_token() }}">
 
         <div class="form-grid">
 
@@ -466,27 +468,14 @@ Register and manage patient records
 
 
                             <!-- DELETE -->
-                            <form
-                                method="POST"
-                                action="{{ url_for('delete_patient', patient_id=patient['id']) }}"
-                                style="display:inline;"
-                                onsubmit="return confirm('Are you sure you want to delete this patient?');"
-                            >
+                            <form method="POST"
+      action="{{ url_for('delete_patient', patient_id=patient['id']) }}"
+      onsubmit="return confirm('Are you sure you want to delete this patient?');">
 
-                                <button
-                                    type="submit"
-                                    class="delete-btn"
-                                    title="Delete Patient"
-                                >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-                                    <i class="fa-solid fa-trash"></i>
-
-                                    Delete
-
-                                </button>
-
-                            </form>
-
+    <button type="submit">Delete</button>
+</form>
                         </div>
 
                     </td>

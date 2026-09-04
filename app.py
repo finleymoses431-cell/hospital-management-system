@@ -14,7 +14,7 @@ from flask import (
     abort
 )
 
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect,CSRFError
 
 from werkzeug.security import (
     generate_password_hash,
@@ -136,9 +136,18 @@ def page_not_found(error):
         error_message="The requested page could not be found."
     ), 404
 
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    print("CSRF ERROR:", e.description)
 
+    return f"""
+    <h1>CSRF Error</h1>
+    <p>{e.description}</p>
+    <p>Please go back and try again.</p>
+    """, 400
 @app.errorhandler(400)
 def bad_request(error):
+
 
     return render_template(
         "error.html",
@@ -380,45 +389,21 @@ def patients():
 
     if request.method == "POST":
 
-        patient_number = request.form.get(
-            "patient_number", ""
-        ).strip()
-
-        first_name = request.form.get(
-            "first_name", ""
-        ).strip()
-
-        last_name = request.form.get(
-            "last_name", ""
-        ).strip()
-
-        date_of_birth = request.form.get(
-            "date_of_birth", ""
-        ).strip()
-
-        gender = request.form.get(
-            "gender", ""
-        ).strip()
-
-        phone = request.form.get(
-            "phone", ""
-        ).strip()
-
-        address = request.form.get(
-            "address", ""
-        ).strip()
-
-        blood_group = request.form.get(
-            "blood_group", ""
-        ).strip()
-
-        emergency_contact = request.form.get(
-            "emergency_contact", ""
-        ).strip()
+        patient_number = request.form.get("patient_number", "").strip()
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        date_of_birth = request.form.get("date_of_birth", "").strip()
+        gender = request.form.get("gender", "").strip()
+        phone = request.form.get("phone", "").strip()
+        address = request.form.get("address", "").strip()
+        blood_group = request.form.get("blood_group", "").strip()
+        emergency_contact = request.form.get("emergency_contact", "").strip()
 
         if not patient_number or not first_name or not last_name:
+
             connection.close()
-            return "Patient number, first name and last name are required.", 400
+
+            return "Required patient fields are missing.", 400
 
         try:
 
@@ -450,15 +435,21 @@ def patients():
 
             connection.commit()
 
-        except Exception:
+        except Exception as e:
 
+            print(
+                "PATIENT REGISTRATION ERROR:",
+                repr(e)
+            )
+
+            connection.rollback()
             connection.close()
 
-            return "Unable to register patient. Check that the patient number is unique.", 400
+            return f"PATIENT DATABASE ERROR: {e}", 400
 
         connection.close()
 
-        return "Patient registered successfully!"
+        return redirect(url_for("patients"))
 
     search = request.args.get(
         "search",
@@ -497,12 +488,8 @@ def patients():
         patients=patients_list,
         search=search
     )
-
-
 # =========================================================
 # VIEW PATIENT
-# =========================================================
-
 @app.route("/patients/<int:patient_id>")
 @role_required(
     "Administrator",
@@ -655,10 +642,7 @@ def edit_patient(patient_id):
 # =========================================================
 # DELETE PATIENT
 # =========================================================
-@app.route(
-    "/patients/<int:patient_id>/delete",
-    methods=["POST"]
-)
+@app.route("/delete_patient/<int:patient_id>", methods=["POST"])
 @role_required("Administrator")
 def delete_patient(patient_id):
 
@@ -674,9 +658,7 @@ def delete_patient(patient_id):
     ).fetchone()
 
     if patient is None:
-
         connection.close()
-
         return "Patient not found", 404
 
     try:
@@ -691,20 +673,21 @@ def delete_patient(patient_id):
 
         connection.commit()
 
-    except Exception:
+    except Exception as e:
 
+        connection.rollback()
         connection.close()
 
+        print("DELETE PATIENT ERROR:", repr(e))
+
         return (
-            "Patient cannot be deleted because related records exist.",
+            f"Patient could not be deleted. Database error: {e}",
             400
         )
 
     connection.close()
 
     return redirect(url_for("patients"))
-
-
 # =========================================================
 # DOCTORS
 # =========================================================

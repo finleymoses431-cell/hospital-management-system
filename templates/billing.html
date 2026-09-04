@@ -123,6 +123,9 @@
         <h2>Create New Bill</h2>
 
         <form method="POST">
+            <input type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}">
 
             <label>Patient</label>
 
