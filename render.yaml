@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: hospital-management-system
+    runtime: python
+    plan: starter
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn render_start:app
+    healthCheckPath: /
+    disk:
+      name: hospital-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: HOSPITAL_DATABASE_PATH
+        value: /var/data/hospital.db
